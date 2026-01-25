@@ -1,81 +1,106 @@
 import { analyzeActivitySafety } from './weatherSafety';
 
 /**
- * Finds the best time windows for a given activity over the next 48 hours.
- * @param {Array} hourlyData - List of hourly weather objects from API
- * @param {string} activityId - 'run', 'tennis', etc.
+ * Finds the top 3 best time slots for a given activity within a specific date range.
+ * @param {Array} hourlyData - Full hourly data array
+ * @param {string} activityId - Activity ID (run, bike, etc)
  * @param {string} units - 'us' or 'si'
- * @returns {Array} - Sorted list of recommended slots { startTime, endTime, avgScore, mainAdvice }
+ * @param {Date} targetDate - Optional: If provided, only look for slots on this specific day (local time)
+ * @returns {Array} Array of up to 3 best slots { startTime, durationHours, avgScore, bestAdvice }
  */
-export const findBestTimeSlots = (hourlyData, activityId, units = 'us') => {
+export const findBestTimeSlots = (hourlyData, activityId, units = 'us', targetDate = null) => {
     if (!hourlyData || hourlyData.length === 0) return [];
 
-    // 1. Score every hour, but only keep those within 5 AM - 10 PM
-    const scoredHours = hourlyData.slice(0, 48).filter(hour => {
-        const h = new Date(hour.time * 1000).getHours();
-        return h >= 5 && h <= 22;
-    }).map(hour => {
+    let candidates = [];
+
+    // 1. Score every single hour
+    const scoredHours = hourlyData.map(hour => {
         const analysis = analyzeActivitySafety(activityId, hour, units);
         return {
             time: hour.time,
             score: analysis.score,
-            status: analysis.status,
-            advice: analysis.advice
+            advice: analysis.advice,
+            hourData: hour
         };
     });
 
-    // 2. Group into contiguous slots (minimum 70 score)
-    const slots = [];
-    let currentSlot = null;
+    // 2. Filter by date if requested
+    let hoursToScan = scoredHours;
+    if (targetDate) {
+        // Create start/end of target date in local time logic
+        // Note: This relies on device timezone vs API timezone. 
+        // Ideally we use the timezone offset from API, but for MVP local comparison usually works if user is present.
 
-    for (let i = 0; i < scoredHours.length; i++) {
-        const h = scoredHours[i];
-        const isViable = h.score >= 70; // Only consider Good or Ideal hours
+        const targetDay = targetDate.getDate();
+        const targetMonth = targetDate.getMonth();
 
-        if (isViable) {
-            if (!currentSlot) {
-                currentSlot = {
-                    start: h.time,
-                    end: h.time,
-                    totalScore: h.score,
-                    count: 1,
-                    hours: [h]
-                };
-            } else {
-                currentSlot.end = h.time;
-                currentSlot.totalScore += h.score;
-                currentSlot.count += 1;
-                currentSlot.hours.push(h);
-            }
-        } else {
-            if (currentSlot) {
-                // End of a slot
-                slots.push(finishSlot(currentSlot));
-                currentSlot = null;
-            }
-        }
+        hoursToScan = scoredHours.filter(h => {
+            const d = new Date(h.time * 1000);
+            return d.getDate() === targetDay && d.getMonth() === targetMonth;
+        });
     }
-    // Push final slot if exists
-    if (currentSlot) slots.push(finishSlot(currentSlot));
 
-    // 3. Filter short slots (optional, e.g., must be at least 2 hours? maybe not for simple quick activities)
-    // but let's keep even 1 hour slots if they are really good.
+    // 3. Find contiguous windows (min 1 hour)
+    // We want to find "Peaks". 
+    // A simple approach: Group extremely good hours.
 
-    // 4. Rank slots
-    // Priority: Score first, then Duration, then Sooner
-    return slots.sort((a, b) => {
-        if (b.avgScore !== a.avgScore) return b.avgScore - a.avgScore;
-        return b.durationHours - a.durationHours;
-    }).slice(0, 3); // Return top 3
-};
+    // Let's find single-hour or multi-hour blocks where score > 70 (Fair+)
+    // Then rank them by (Score * Duration).
 
-const finishSlot = (slot) => {
-    return {
-        startTime: slot.start,
-        endTime: slot.end + 3600, // End of the hour
-        durationHours: slot.count,
-        avgScore: Math.round(slot.totalScore / slot.count),
-        // Pick advice from the best hour in the slot
-        bestAdvice: slot.hours.sort((a, b) => b.score - a.score)[0].advice
-    };
+    // For "Top 3", we just want the highest scoring distinct blocks.
+
+    // Sort all hours by score descending to find peaks
+    const sortedHours = [...hoursToScan].sort((a, b) => b.score - a.score);
+
+    // We want the top 3 DISTINCT times (not 2pm, 3pm, 4pm as 3 separate choices)
+    // Basic clustering: pick best, remove neighbors, pick next best.
+
+    const results = [];
+    const usedIndices = new Set();
+
+    for (const topHour of sortedHours) {
+        if (results.length >= 3) break;
+        if (topHour.score < 60) break; // Don't suggest poor times
+
+        // Find index in original array to check neighbors
+        const originalIndex = hoursToScan.findIndex(h => h.time === topHour.time);
+
+        if (usedIndices.has(originalIndex)) continue;
+
+        // It's a valid new peak. Let's see if it extends (safety > 70)
+        // Expand left
+        let start = originalIndex;
+        while (start > 0 &&
+            hoursToScan[start - 1].score > 70 &&
+            !usedIndices.has(start - 1) &&
+            (hoursToScan[originalIndex].time - hoursToScan[start - 1].time) < 3600 * 4) { // Max 4h window
+            start--;
+        }
+
+        // Expand right
+        let end = originalIndex;
+        while (end < hoursToScan.length - 1 &&
+            hoursToScan[end + 1].score > 70 &&
+            !usedIndices.has(end + 1) &&
+            (hoursToScan[end + 1].time - hoursToScan[originalIndex].time) < 3600 * 4) {
+            end++;
+        }
+
+        // Mark used
+        for (let i = start; i <= end; i++) usedIndices.add(i);
+
+        // Calculate average score of this window
+        let totalScore = 0;
+        for (let i = start; i <= end; i++) totalScore += hoursToScan[i].score;
+        const avgScore = Math.round(totalScore / (end - start + 1));
+
+        results.push({
+            startTime: hoursToScan[start].time,
+            durationHours: end - start + 1,
+            avgScore: avgScore,
+            bestAdvice: hoursToScan[originalIndex].advice // Advice from the peak hour
+        });
+    }
+
+    return results; // Already sorted by nature of the search loop
 };

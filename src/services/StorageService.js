@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import * as SecureStore from 'expo-secure-store';
+
 const WEATHER_CACHE_KEY = 'weather_cache';
 const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -29,9 +31,10 @@ export const getCachedWeatherData = async () => {
     return null;
 };
 
+// SECURITY UPDATE: Use SecureStore for sensitive keys
 export const saveApiKey = async (key) => {
     try {
-        await AsyncStorage.setItem('pirate_weather_key', key);
+        await SecureStore.setItemAsync('pirate_weather_key', key);
     } catch (e) {
         console.error("Failed to save API key", e);
     }
@@ -39,7 +42,21 @@ export const saveApiKey = async (key) => {
 
 export const getApiKey = async () => {
     try {
-        return await AsyncStorage.getItem('pirate_weather_key');
+        // 1. Try SecureStore first (New Standard)
+        let key = await SecureStore.getItemAsync('pirate_weather_key');
+
+        // 2. Fallback to AsyncStorage (Legacy Migration)
+        if (!key) {
+            key = await AsyncStorage.getItem('pirate_weather_key');
+
+            // 3. If found in Legacy, Migrate & Delete
+            if (key) {
+                console.log("Migrating API Key to SecureStore...");
+                await SecureStore.setItemAsync('pirate_weather_key', key);
+                await AsyncStorage.removeItem('pirate_weather_key');
+            }
+        }
+        return key;
     } catch (e) {
         console.error("Failed to get API key", e);
     }
@@ -96,4 +113,22 @@ export const getSelectedActivity = async () => {
         console.error("Failed to get selected activity", e);
     }
     return 'walk';
+};
+
+export const saveLastKnownLocation = async (coords) => {
+    try {
+        await AsyncStorage.setItem('last_known_coords', JSON.stringify(coords));
+    } catch (e) {
+        console.error("Failed to save last known coords", e);
+    }
+};
+
+export const getLastKnownLocation = async () => {
+    try {
+        const value = await AsyncStorage.getItem('last_known_coords');
+        return value ? JSON.parse(value) : null;
+    } catch (e) {
+        console.error("Failed to get last known coords", e);
+    }
+    return null;
 };

@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme, getWeatherGradient } from '../context/ThemeContext';
+import ParticleSystem from './ParticleSystem';
 
 const WeatherBackground = ({ children, condition }) => {
     const { theme } = useTheme();
@@ -26,6 +27,9 @@ const WeatherBackground = ({ children, condition }) => {
                     end={{ x: 1, y: 1 }}
                 />
             )}
+
+            {/* Particle Layer */}
+            <ParticleSystem condition={condition} />
 
             {/* Overlay for glassmorphism tint (optional, improves text readability) */}
             {theme.name === 'dark' && (

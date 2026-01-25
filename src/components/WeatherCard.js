@@ -2,12 +2,19 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { getSeverityOverride } from '../utils/weatherSafety';
 
 const WeatherCard = ({ currently, dailyData }) => {
     const { theme } = useTheme();
     if (!currently) return null;
 
-    const { temperature, summary, precipProbability, precipIntensity } = currently;
+    const { temperature, summary, precipProbability, precipIntensity, windSpeed } = currently;
+
+    // DEBUG: Inspect raw values
+    console.log("DEBUG WEATHER:", { temp: temperature, intensity: precipIntensity, wind: windSpeed, summary });
+
+    const severityOverride = getSeverityOverride(currently, false); // assume US for now or pass props
+    const displaySummary = severityOverride || summary;
 
     const sunrise = dailyData?.[0]?.sunriseTime
         ? new Date(dailyData[0].sunriseTime * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -23,7 +30,7 @@ const WeatherCard = ({ currently, dailyData }) => {
             borderColor: theme.glassBorder,
             shadowColor: theme.shadow
         }]}>
-            <Text style={[styles.summary, { color: theme.textSecondary }]}>{summary}</Text>
+            <Text style={[styles.summary, { color: theme.textSecondary }]}>{displaySummary}</Text>
             <Text style={[styles.temp, { color: theme.text }]}>{Math.round(temperature)}°</Text>
 
             <View style={styles.sunRow}>

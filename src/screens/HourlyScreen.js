@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, SectionList, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GradientBackground from '../components/GradientBackground';
@@ -9,6 +9,102 @@ import { analyzeActivitySafety } from '../utils/weatherSafety';
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+// Optimization: Extracted & Memoized List Item
+// This prevents the entire list from re-rendering when one item expands
+const HourlyItem = React.memo(({ item, isExpanded, onToggle, theme }) => {
+    const date = new Date(item.time * 1000);
+    const hour = date.getHours();
+    const ampm = hour >= 12 ? 'pm' : 'am';
+    const hourDisp = hour % 12 || 12;
+
+    const readiness = item.analysis;
+
+    // Map safety score to icon
+    let icon = 'checkmark-circle-outline';
+    if (readiness.status === 'Poor' || readiness.status === 'Hazardous') icon = 'close-circle-outline';
+    else if (readiness.status === 'Fair') icon = 'alert-circle-outline';
+
+    const mainReason = readiness.advice;
+
+    return (
+        <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => onToggle(item.time)}
+            style={[
+                styles.card,
+                {
+                    backgroundColor: theme.cardBg,
+                    borderColor: isExpanded ? theme.accent : 'rgba(255,255,255,0.05)',
+                    height: isExpanded ? 160 : 90
+                }
+            ]}
+        >
+            <View style={[styles.statusIndicator, { backgroundColor: readiness.color }]} />
+
+            <View style={styles.cardHeader}>
+                <View style={styles.timeSection}>
+                    <Text style={[styles.time, { color: theme.text }]}>{hourDisp}{ampm}</Text>
+                    <Text style={[styles.statusText, { color: readiness.color }]}>{readiness.label}</Text>
+                </View>
+
+                <View style={styles.mainInfo}>
+                    <View style={styles.tempRow}>
+                        <Text style={[styles.temp, { color: theme.text }]}>{Math.round(item.temperature)}°</Text>
+                        <View style={styles.summaryWrap}>
+                            <Text style={[styles.summary, { color: theme.textSecondary }]} numberOfLines={1}>
+                                {item.summary}
+                            </Text>
+                            <Text style={[styles.reasonText, { color: readiness.color }]} numberOfLines={1}>
+                                {mainReason}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+
+                <View style={styles.iconBox}>
+                    <Ionicons name={icon} size={28} color={readiness.color} />
+                </View>
+            </View>
+
+            {isExpanded && (
+                <View style={styles.expandedContent}>
+                    <View style={styles.statGrid}>
+                        <View style={styles.statItem}>
+                            <Ionicons name="water-outline" size={14} color={theme.accent} />
+                            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Rain</Text>
+                            <Text style={[styles.statValue, { color: theme.text }]}>{Math.round(item.precipProbability * 100)}%</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                            <Ionicons name="leaf-outline" size={14} color={theme.accent} />
+                            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Wind</Text>
+                            <Text style={[styles.statValue, { color: theme.text }]}>{Math.round(item.windSpeed)}<Text style={styles.unit}>mph</Text></Text>
+                        </View>
+                        <View style={styles.statItem}>
+                            <Ionicons name="sunny-outline" size={14} color={theme.accent} />
+                            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>UV</Text>
+                            <Text style={[styles.statValue, { color: theme.text }]}>{Math.round(item.uvIndex)}</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                            <Ionicons name="thermometer-outline" size={14} color={theme.accent} />
+                            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Feels</Text>
+                            <Text style={[styles.statValue, { color: theme.text }]}>{Math.round(item.apparentTemperature)}°</Text>
+                        </View>
+                    </View>
+                    <Text style={[styles.fullReasons, { color: theme.textSecondary }]}>
+                        {readiness.advice}
+                    </Text>
+                </View>
+            )}
+        </TouchableOpacity>
+    );
+}, (prevProps, nextProps) => {
+    // Custom comparison for performance
+    // Only re-render if expansion state changes or if data deep changes (unlikely for static weather)
+    return prevProps.isExpanded === nextProps.isExpanded &&
+        prevProps.theme.name === nextProps.theme.name &&
+        prevProps.item.time === nextProps.item.time;
+});
 
 const HourlyScreen = () => {
     const { weather, units, selectedActivity } = useWeather();
@@ -63,102 +159,24 @@ const HourlyScreen = () => {
             .map(([title, data]) => ({ title, data }));
     }, [hourlyData, currently, selectedActivity, units]);
 
-    const toggleExpand = (id) => {
+    const toggleExpand = useCallback((id) => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        const newExpanded = new Set(expandedIds);
-        if (newExpanded.has(id)) newExpanded.delete(id);
-        else newExpanded.add(id);
-        setExpandedIds(newExpanded);
-    };
+        setExpandedIds(prev => {
+            const newExpanded = new Set(prev);
+            if (newExpanded.has(id)) newExpanded.delete(id);
+            else newExpanded.add(id);
+            return newExpanded;
+        });
+    }, []);
 
-    const renderItem = ({ item }) => {
-        const isExpanded = expandedIds.has(item.time);
-        const date = new Date(item.time * 1000);
-        const hour = date.getHours();
-        const ampm = hour >= 12 ? 'pm' : 'am';
-        const hourDisp = hour % 12 || 12;
-
-        const readiness = item.analysis;
-
-        // Map safety score to icon (approximate since we don't have icon in safety object, logic can be inferred)
-        let icon = 'checkmark-circle-outline';
-        if (readiness.status === 'Poor' || readiness.status === 'Hazardous') icon = 'close-circle-outline';
-        else if (readiness.status === 'Fair') icon = 'alert-circle-outline';
-
-        const mainReason = readiness.advice;
-
-        return (
-            <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => toggleExpand(item.time)}
-                style={[
-                    styles.card,
-                    {
-                        backgroundColor: theme.cardBg,
-                        borderColor: isExpanded ? theme.accent : 'rgba(255,255,255,0.05)',
-                        height: isExpanded ? 160 : 90
-                    }
-                ]}
-            >
-                <View style={[styles.statusIndicator, { backgroundColor: readiness.color }]} />
-
-                <View style={styles.cardHeader}>
-                    <View style={styles.timeSection}>
-                        <Text style={[styles.time, { color: theme.text }]}>{hourDisp}{ampm}</Text>
-                        <Text style={[styles.statusText, { color: readiness.color }]}>{readiness.label}</Text>
-                    </View>
-
-                    <View style={styles.mainInfo}>
-                        <View style={styles.tempRow}>
-                            <Text style={[styles.temp, { color: theme.text }]}>{Math.round(item.temperature)}°</Text>
-                            <View style={styles.summaryWrap}>
-                                <Text style={[styles.summary, { color: theme.textSecondary }]} numberOfLines={1}>
-                                    {item.summary}
-                                </Text>
-                                <Text style={[styles.reasonText, { color: readiness.color }]} numberOfLines={1}>
-                                    {mainReason}
-                                </Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    <View style={styles.iconBox}>
-                        <Ionicons name={icon} size={28} color={readiness.color} />
-                    </View>
-                </View>
-
-                {isExpanded && (
-                    <View style={styles.expandedContent}>
-                        <View style={styles.statGrid}>
-                            <View style={styles.statItem}>
-                                <Ionicons name="water-outline" size={14} color={theme.accent} />
-                                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Rain</Text>
-                                <Text style={[styles.statValue, { color: theme.text }]}>{Math.round(item.precipProbability * 100)}%</Text>
-                            </View>
-                            <View style={styles.statItem}>
-                                <Ionicons name="leaf-outline" size={14} color={theme.accent} />
-                                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Wind</Text>
-                                <Text style={[styles.statValue, { color: theme.text }]}>{Math.round(item.windSpeed)}<Text style={styles.unit}>mph</Text></Text>
-                            </View>
-                            <View style={styles.statItem}>
-                                <Ionicons name="sunny-outline" size={14} color={theme.accent} />
-                                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>UV</Text>
-                                <Text style={[styles.statValue, { color: theme.text }]}>{Math.round(item.uvIndex)}</Text>
-                            </View>
-                            <View style={styles.statItem}>
-                                <Ionicons name="thermometer-outline" size={14} color={theme.accent} />
-                                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Feels</Text>
-                                <Text style={[styles.statValue, { color: theme.text }]}>{Math.round(item.apparentTemperature)}°</Text>
-                            </View>
-                        </View>
-                        <Text style={[styles.fullReasons, { color: theme.textSecondary }]}>
-                            {readiness.advice}
-                        </Text>
-                    </View>
-                )}
-            </TouchableOpacity>
-        );
-    };
+    const renderItem = useCallback(({ item }) => (
+        <HourlyItem
+            item={item}
+            isExpanded={expandedIds.has(item.time)}
+            onToggle={toggleExpand}
+            theme={theme}
+        />
+    ), [expandedIds, toggleExpand, theme]);
 
     return (
         <GradientBackground>
@@ -175,6 +193,9 @@ const HourlyScreen = () => {
                 )}
                 contentContainerStyle={styles.list}
                 stickySectionHeadersEnabled={false}
+                initialNumToRender={10} // Optimization: Don't render everything at start
+                maxToRenderPerBatch={5}
+                windowSize={5}
             />
         </GradientBackground>
     );

@@ -10,6 +10,9 @@ import { ThemeProvider } from './src/context/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { registerBackgroundWeatherTask } from './src/services/BackgroundWeatherTask';
 
+// Register Android Widget Task Handler
+import './src/widgets/widgetTaskHandler';
+
 // Configure how notifications should behave when app is in foreground
 Notifications.setNotificationHandler({
     handleNotification: async () => ({

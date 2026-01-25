@@ -47,7 +47,26 @@
       "expo-asset",
       "expo-font",
       "expo-notifications",
-      "expo-location"
+      "expo-location",
+      "expo-secure-store",
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "WeatherWidget",
+              "label": "MicroRain Activity",
+              "minWidth": "180dp",
+              "minHeight": "110dp",
+              "description": "Shows your activity score at a glance",
+              "previewImage": "./assets/widget-preview.png",
+              "resizeMode": "horizontal|vertical",
+              "widgetFeatures": "reconfigurable",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ]
   }
 }

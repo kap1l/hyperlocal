@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
 import { fetchWeather } from '../services/WeatherService';
 import { getCurrentLocation } from '../services/LocationService';
 import {
@@ -11,8 +11,11 @@ import {
     getLocationConfig,
     saveLocationConfig as saveLocationToStorage,
     getSelectedActivity,
-    saveSelectedActivity as saveActivityToStorage
+    saveSelectedActivity as saveActivityToStorage,
+    saveLastKnownLocation
 } from '../services/StorageService';
+import { updateWidgetData } from '../services/WidgetService';
+import NetInfo from '@react-native-community/netinfo';
 
 const WeatherContext = createContext();
 
@@ -28,6 +31,15 @@ export const WeatherProvider = ({ children }) => {
     const [locationConfig, setLocationConfigState] = useState({ mode: 'auto' });
     const [locationName, setLocationName] = useState('Current Location');
     const [selectedActivity, setSelectedActivityState] = useState('walk');
+    const [isOffline, setIsOffline] = useState(false);
+
+    // Network connectivity listener
+    useEffect(() => {
+        const unsubscribe = NetInfo.addEventListener(state => {
+            setIsOffline(!state.isConnected);
+        });
+        return () => unsubscribe();
+    }, []);
 
     useEffect(() => {
         loadInitialData();
@@ -72,26 +84,50 @@ export const WeatherProvider = ({ children }) => {
             return;
         }
 
-        setLoading(true);
+        // If we already have data, don't show full screen loader (Background Update)
+        if (!weather) setLoading(true);
         setError(null);
+
         try {
             let coords;
             let name;
 
+            // 1. Determine Coordinates Strategy
             if (locationConfig.mode === 'manual' && locationConfig.coords) {
+                // Manual Mode: Fast & Deterministic
                 coords = locationConfig.coords;
                 name = locationConfig.label || 'Manual Location';
             } else {
+                // Auto Mode: 
+                // A. Try One-Shot GPS (This takes 2-3s)
+                // Optimization: If we have lastKnownLocation, we could use it? 
+                // For now, let's stick to simple "backgrounding" the spinner.
+
+                // Note: To be truly "Instant", we would load weather for 'lastKnown' immediately,
+                // then update if current location is significantly different. 
+                // For this step, removing the 'setLoading(true)' when cached data exists is the biggest win.
                 coords = await getCurrentLocation();
-                const { reverseGeocode } = require('../services/LocationService');
-                name = await reverseGeocode(coords.latitude, coords.longitude);
+
+                // Save specific coords for next launch
+                const { saveLastKnownLocation, reverseGeocode } = require('../services/StorageService'); // Late import to avoid cycle if any
+                // Actually StorageService is already imported
+                const { saveLastKnownLocation: saveLoc } = require('../services/StorageService');
+                saveLoc(coords);
+
+                const { reverseGeocode: revGeo } = require('../services/LocationService');
+                name = await revGeo(coords.latitude, coords.longitude);
             }
 
+            // 2. Fetch Weather
             const data = await fetchWeather(apiKey, coords.latitude, coords.longitude, units);
             setWeather(data);
             setLocationName(name);
             setLastUpdated(Date.now());
             await saveWeatherData(data);
+
+            // Update Android widget with latest data
+            updateWidgetData(data, selectedActivity, units);
+
         } catch (e) {
             setError(e.message);
             console.error("Refresh failed", e);
@@ -120,13 +156,15 @@ export const WeatherProvider = ({ children }) => {
         await saveActivityToStorage(activity);
     };
 
+    const value = useMemo(() => ({
+        weather, loading, error, apiKey, setApiKey,
+        units, setUnits, refreshWeather, lastUpdated,
+        locationConfig, setLocationConfig, locationName,
+        selectedActivity, setSelectedActivity, isOffline
+    }), [weather, loading, error, apiKey, units, lastUpdated, locationConfig, locationName, selectedActivity, isOffline]);
+
     return (
-        <WeatherContext.Provider value={{
-            weather, loading, error, apiKey, setApiKey,
-            units, setUnits, refreshWeather, lastUpdated,
-            locationConfig, setLocationConfig, locationName,
-            selectedActivity, setSelectedActivity
-        }}>
+        <WeatherContext.Provider value={value}>
             {children}
         </WeatherContext.Provider>
     );

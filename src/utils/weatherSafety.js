@@ -22,6 +22,41 @@ export const analyzeTemperatureSafety = (currently, units = 'us') => {
     return { status: 'safe', label: 'Safe Temp', color: '#22c55e' };
 };
 
+/**
+ * Returns a severity label to override API summaries if conditions are extreme.
+ */
+export const getSeverityOverride = (currently, isMetric) => {
+    if (!currently) return null;
+    const precip = currently.precipIntensity || 0; // Inches per hour usually
+    const wind = currently.windSpeed || 0;
+    const tempF = isMetric ? (currently.temperature * 9 / 5) + 32 : currently.temperature;
+
+    // Snow Logic
+    if (tempF < 34) {
+        // EXTREME COLD LOGIC (<15F): Snow ratio is ~30:1.
+        // 0.02" liquid = 0.6" snow/hr (Moderate/Heavy)
+        if (tempF < 15) {
+            if (precip > 0.01) return "Heavy Snow";
+            if (wind > 10 && precip > 0.001) return "Winter Storm";
+        }
+
+        // Standard Cold (15-34F): Snow ratio ~10:1
+        if (precip > 0.05) return "Heavy Snow";
+        if (wind > 20 && precip > 0.005) return "Winter Storm";
+        if (precip > 0.002) return "Snow";
+    }
+    // Rain Logic
+    else {
+        if (precip > 0.3) return "Heavy Rain";
+        if (precip > 0.1) return "Moderate Rain";
+    }
+
+    // Wind Logic
+    if (wind > 50) return "Damaging Winds";
+
+    return null; // No override needed, trust API
+};
+
 export const analyzeDogWalkingSafety = (currently, units = 'us') => {
     if (!currently) return null;
     const isMetric = units === 'si';
@@ -35,6 +70,62 @@ export const analyzeDogWalkingSafety = (currently, units = 'us') => {
 
     return { status: 'safe', label: 'Safe for Paws', color: '#22c55e' };
 }
+
+// Define ideal conditions (The Chart) - Extracted for performance
+const ACTIVITY_THRESHOLDS = {
+    run: {
+        temp: { ideal: [45, 65], warning: [20, 85], unit: '°F' },
+        wind: { ideal: [0, 10], warning: [0, 20], unit: 'mph' }
+    },
+    walk: {
+        temp: { ideal: [55, 75], warning: [35, 85], unit: '°F' },
+        uv: { ideal: [0, 4], warning: [0, 7], unit: '' }
+    },
+    hike: {
+        temp: { ideal: [55, 75], warning: [35, 85], unit: '°F' },
+        uv: { ideal: [0, 4], warning: [0, 7], unit: '' }
+    },
+    cycle: {
+        temp: { ideal: [55, 75], warning: [45, 90], unit: '°F' },
+        wind: { ideal: [0, 8], warning: [0, 15], unit: 'mph' }
+    },
+    moto: {
+        temp: { ideal: [65, 85], warning: [55, 95], unit: '°F' },
+        wind: { ideal: [0, 10], warning: [0, 20], unit: 'mph' }
+    },
+    tennis: {
+        temp: { ideal: [65, 80], warning: [55, 90], unit: '°F' },
+        wind: { ideal: [0, 10], warning: [0, 15], unit: 'mph' }
+    },
+    pickleball: {
+        temp: { ideal: [65, 80], warning: [55, 90], unit: '°F' },
+        wind: { ideal: [0, 10], warning: [0, 15], unit: 'mph' }
+    },
+    golf: {
+        temp: { ideal: [65, 80], warning: [50, 90], unit: '°F' },
+        wind: { ideal: [0, 10], warning: [0, 20], unit: 'mph' }
+    },
+    yoga: {
+        temp: { ideal: [70, 85], warning: [65, 90], unit: '°F' },
+        wind: { ideal: [0, 5], warning: [0, 10], unit: 'mph' }
+    },
+    picnic: {
+        temp: { ideal: [70, 80], warning: [60, 85], unit: '°F' },
+        wind: { ideal: [0, 8], warning: [0, 12], unit: 'mph' }
+    },
+    stargaze: {
+        cloud: { ideal: [0, 10], warning: [0, 30], unit: '%' },
+        vis: { ideal: [8, 10], warning: [5, 10], unit: 'mi' }
+    },
+    fishing: {
+        temp: { ideal: [50, 80], warning: [40, 90], unit: '°F' },
+        wind: { ideal: [0, 10], warning: [0, 15], unit: 'mph' }
+    },
+    camera: {
+        vis: { ideal: [8, 10], warning: [3, 10], unit: 'mi' },
+        wind: { ideal: [0, 10], warning: [0, 20], unit: 'mph' }
+    }
+};
 
 /**
  * Unified safety analysis for user-selected activities
@@ -54,62 +145,6 @@ export const analyzeActivitySafety = (activityId, currently, units = 'us') => {
     const humidity = currently.humidity || 0;
     const cloudCover = currently.cloudCover || 0; // 0-1
 
-    // Define ideal conditions (The Chart)
-    const ACTIVITY_THRESHOLDS = {
-        run: {
-            temp: { ideal: [45, 65], warning: [20, 85], unit: '°F' },
-            wind: { ideal: [0, 10], warning: [0, 20], unit: 'mph' }
-        },
-        walk: {
-            temp: { ideal: [55, 75], warning: [35, 85], unit: '°F' },
-            uv: { ideal: [0, 4], warning: [0, 7], unit: '' }
-        },
-        hike: {
-            temp: { ideal: [55, 75], warning: [35, 85], unit: '°F' },
-            uv: { ideal: [0, 4], warning: [0, 7], unit: '' }
-        },
-        cycle: {
-            temp: { ideal: [55, 75], warning: [45, 90], unit: '°F' },
-            wind: { ideal: [0, 8], warning: [0, 15], unit: 'mph' }
-        },
-        moto: {
-            temp: { ideal: [65, 85], warning: [55, 95], unit: '°F' },
-            wind: { ideal: [0, 10], warning: [0, 20], unit: 'mph' }
-        },
-        tennis: {
-            temp: { ideal: [65, 80], warning: [55, 90], unit: '°F' },
-            wind: { ideal: [0, 10], warning: [0, 15], unit: 'mph' }
-        },
-        pickleball: {
-            temp: { ideal: [65, 80], warning: [55, 90], unit: '°F' },
-            wind: { ideal: [0, 10], warning: [0, 15], unit: 'mph' }
-        },
-        golf: {
-            temp: { ideal: [65, 80], warning: [50, 90], unit: '°F' },
-            wind: { ideal: [0, 10], warning: [0, 20], unit: 'mph' }
-        },
-        yoga: {
-            temp: { ideal: [70, 85], warning: [65, 90], unit: '°F' },
-            wind: { ideal: [0, 5], warning: [0, 10], unit: 'mph' }
-        },
-        picnic: {
-            temp: { ideal: [70, 80], warning: [60, 85], unit: '°F' },
-            wind: { ideal: [0, 8], warning: [0, 12], unit: 'mph' }
-        },
-        stargaze: {
-            cloud: { ideal: [0, 10], warning: [0, 30], unit: '%' },
-            vis: { ideal: [8, 10], warning: [5, 10], unit: 'mi' }
-        },
-        fishing: {
-            temp: { ideal: [50, 80], warning: [40, 90], unit: '°F' },
-            wind: { ideal: [0, 10], warning: [0, 15], unit: 'mph' }
-        },
-        camera: {
-            vis: { ideal: [8, 10], warning: [3, 10], unit: 'mi' },
-            wind: { ideal: [0, 10], warning: [0, 20], unit: 'mph' }
-        }
-    };
-
     let score = 100;
     let metrics = [];
     let advice = "Enjoy your activity!";
@@ -119,17 +154,17 @@ export const analyzeActivitySafety = (activityId, currently, units = 'us') => {
         let status = 'good';
         if (value < warningRange[0] || value > warningRange[1]) {
             status = 'poor';
-            score -= 60; // CRITICAL FIX: Was 30, which meant score 70 (Good). Now 40 (Poor).
+            score -= 60; // CRITICAL FIX: Danger Zone
         } else if (value < idealRange[0] || value > idealRange[1]) {
             status = 'fair';
-            score -= 20; // Avg penalty
+            score -= 20; // Non-Ideal penalty
 
             // BORDERLINE CHECK for Temperature
             if (name === 'Temp') {
                 const distToMin = value - warningRange[0];
                 const distToMax = warningRange[1] - value;
                 if (distToMin <= 5 || distToMax <= 5) {
-                    score -= 15; // Downgrade to Fair (65)
+                    score -= 15; // Downgrade to Fair
                 }
             }
         }
@@ -138,23 +173,12 @@ export const analyzeActivitySafety = (activityId, currently, units = 'us') => {
 
     // Common Checks
     const isFreezing = tempF <= 32;
-
-    // "Is it raining?" - Strict check for definite conditions
-    // We trust the icon OR high probability (> 40%)
     const icon = currently.icon || '';
     const isIconRain = icon.includes('rain') || icon.includes('sleet');
     const isIconSnow = icon.includes('snow');
-
-    // Snow logic: Freezing AND (Snow Icon OR Precip > 40%)
     const isSnowing = isFreezing && (isIconSnow || precip > 0.4);
-
-    // Rain logic: Not Freezing AND (Rain Icon OR Precip > 40%)
     const isRaining = !isFreezing && (isIconRain || precip > 0.4);
-
-    // "Risk of Rain" - Lower threshold (15-40%) or precip > 15% without icon confirmation
-    // This bucket is for "It COULD rain" but it's not currently pouring or guaranteed.
     const isRainRisk = !isRaining && !isSnowing && precip > 0.15;
-
     const isHeavyRain = precip > 0.5;
 
     // Use thresholds if available

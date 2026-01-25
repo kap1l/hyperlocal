@@ -4,7 +4,7 @@ export const fetchWeather = async (apiKey, lat, lon, units = 'us') => {
     if (!apiKey) {
         throw new Error('API Key is missing');
     }
-    const url = `${BASE_URL}/${apiKey}/${lat},${lon}?units=${units}`;
+    const url = `${BASE_URL}/${apiKey}/${lat},${lon}?units=${units}&extend=hourly`;
 
     try {
         const response = await fetch(url);

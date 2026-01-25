@@ -16,10 +16,14 @@ import CitySearchModal from '../components/CitySearchModal';
 import BestTimeModal from '../components/BestTimeModal';
 import { useWeather } from '../context/WeatherContext';
 import { useTheme } from '../context/ThemeContext';
-import { analyzeActivitySafety } from '../utils/weatherSafety';
+import SmartSummaryCard from '../components/SmartSummaryCard';
+import AirQualityCard from '../components/AirQualityCard';
+import GoldenHourCard from '../components/GoldenHourCard';
+import OfflineBanner from '../components/OfflineBanner';
+import { analyzeActivitySafety, getSeverityOverride } from '../utils/weatherSafety';
 
 const HomeScreen = ({ navigation }) => {
-    const { weather, loading, error, refreshWeather, apiKey, locationName, setLocationConfig } = useWeather();
+    const { weather, loading, error, refreshWeather, apiKey, locationName, setLocationConfig, isOffline, lastUpdated } = useWeather();
     const { theme } = useTheme();
     const { selectedActivity, units } = useWeather();
     const [prevLoading, setPrevLoading] = useState(false);
@@ -31,6 +35,10 @@ const HomeScreen = ({ navigation }) => {
     const activityAnalysis = React.useMemo(() => {
         return analyzeActivitySafety(weather ? selectedActivity || 'walk' : 'walk', weather?.currently, units);
     }, [weather, selectedActivity, units]);
+
+    // Calculate severity for background visualization (e.g. "heavy snow")
+    const severityOverride = weather?.currently ? getSeverityOverride(weather.currently, units === 'si') : null;
+    const backgroundCondition = severityOverride ? severityOverride.toLowerCase() : weather?.currently?.icon;
 
     // Snazzy entry animation for location
     useEffect(() => {
@@ -64,7 +72,8 @@ const HomeScreen = ({ navigation }) => {
     }
 
     return (
-        <WeatherBackground condition={weather?.currently?.icon}>
+        <WeatherBackground condition={backgroundCondition}>
+            <OfflineBanner isOffline={isOffline} lastUpdated={lastUpdated} />
             <ScrollView
                 contentContainerStyle={styles.scroll}
                 refreshControl={
@@ -81,7 +90,7 @@ const HomeScreen = ({ navigation }) => {
                 <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
                     <View style={styles.locationWrapper}>
                         <View style={[styles.pulseCircle, { backgroundColor: theme.accent }]} />
-                        <View style={{ flex: 1 }}>
+                        <View style={styles.locationInfo}>
                             <Text style={[styles.greeting, { color: theme.textSecondary }]}>
                                 {new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 18 ? 'Good Afternoon' : 'Good Evening'}
                             </Text>
@@ -89,7 +98,7 @@ const HomeScreen = ({ navigation }) => {
                                 <Text style={[styles.locationText, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
                                     {locationName || 'Current Location'}
                                 </Text>
-                                <Ionicons name="search-circle" size={24} color={theme.accent} style={{ marginLeft: 6 }} />
+                                <Ionicons name="search-circle" size={24} color={theme.accent} style={styles.searchIcon} />
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -98,6 +107,11 @@ const HomeScreen = ({ navigation }) => {
                 {error && <Text style={styles.error}>{error}</Text>}
                 {weather && (
                     <>
+                        <SmartSummaryCard weather={weather} activity={selectedActivity} />
+                        <WeatherCard
+                            currently={weather.currently}
+                            dailyData={weather.daily?.data}
+                        />
                         <ExtendedActivityCard
                             currently={weather.currently}
                             analysis={activityAnalysis}
@@ -111,18 +125,14 @@ const HomeScreen = ({ navigation }) => {
                             currently={weather.currently}
                         />
                         <MinuteTextBanner minutelyData={weather.minutely?.data} />
-                        <WeatherCard
-                            currently={weather.currently}
-                            dailyData={weather.daily?.data}
-                        />
                         <OutdoorComfortCard currently={weather.currently} />
-                        <OutdoorComfortCard currently={weather.currently} />
+                        <AirQualityCard />
+                        <GoldenHourCard />
                         <ActivityTimeline
                             hourlyData={weather.hourly?.data}
                             currently={weather.currently}
                             currentAnalysis={activityAnalysis}
                         />
-                        <DailyOutlookCard dailyData={weather.daily?.data} />
                         <DailyOutlookCard dailyData={weather.daily?.data} />
                         <RainChart minutelyData={weather.minutely?.data} currently={weather.currently} />
                     </>
@@ -156,6 +166,16 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
     scroll: {
         paddingBottom: 40,
+    },
+    locationInfo: {
+        flex: 1,
+    },
+    locationTextContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    searchIcon: {
+        marginLeft: 6,
     },
     header: {
         paddingTop: 65,
