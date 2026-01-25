@@ -1,6 +1,7 @@
 import React from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-import { View, Text, SafeAreaView } from 'react-native';
+import { View, Text, SafeAreaView, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../context/ThemeContext';
@@ -15,6 +16,7 @@ const Tab = createMaterialTopTabNavigator();
 
 const AppNavigator = () => {
     const { theme } = useTheme();
+    const insets = useSafeAreaInsets();
 
     const triggerHaptic = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -24,47 +26,85 @@ const AppNavigator = () => {
         <Tab.Navigator
             initialRouteName="Home"
             tabBarPosition="bottom"
-            screenOptions={({ route }) => ({
-                tabBarIcon: ({ focused, color }) => {
-                    let iconName;
-                    // Material Top Tabs doesn't pass 'size' by default, pick one
-                    const size = 24;
-                    if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
-                    else if (route.name === 'Radar') iconName = focused ? 'map' : 'map-outline';
-                    else if (route.name === 'Hourly') iconName = focused ? 'time' : 'time-outline';
-                    else if (route.name === 'Alerts') iconName = focused ? 'notifications' : 'notifications-outline';
-                    else if (route.name === 'Settings') iconName = focused ? 'settings' : 'settings-outline';
-                    return <Ionicons name={iconName} size={size} color={color} />;
-                },
-                tabBarActiveTintColor: theme.accent,
-                tabBarInactiveTintColor: theme.tabInactive,
-                tabBarStyle: {
+            tabBar={({ state, descriptors, navigation, position }) => (
+                <View style={{
+                    flexDirection: 'row',
                     backgroundColor: theme.tabBar,
-                    borderTopColor: theme.glassBorder, // Use our theme border
-                    borderTopWidth: 1, // Add explicit border since MaterialTopTabs doesn't have shadow/elevation the same way
-                    height: 60, // Fixed height to accommodate safe area or look like standard bottom tab
-                    paddingBottom: 5, // slight padding
-                    elevation: 0, // Remove default shadow
-                    shadowOpacity: 0,
-                },
-                tabBarIndicatorStyle: {
-                    backgroundColor: theme.accent,
-                    height: 3,
-                    top: 0, // Place indicator at top of the bar (standard for "bottom" tabs is usually no indicator or top)
-                },
-                tabBarShowLabel: true,
-                tabBarLabelStyle: {
-                    fontSize: 10,
-                    textTransform: 'none',
-                    fontWeight: '600',
-                    marginTop: -5,
-                },
-                tabBarItemStyle: {
-                    paddingVertical: 5,
-                },
-                swipeEnabled: true, // ENABLE SWIPE
+                    borderTopColor: theme.glassBorder,
+                    borderTopWidth: 1,
+                    paddingBottom: insets.bottom,
+                    height: 60 + insets.bottom,
+                }}>
+                    {state.routes.map((route, index) => {
+                        const { options } = descriptors[route.key];
+                        const label =
+                            options.tabBarLabel !== undefined
+                                ? options.tabBarLabel
+                                : options.title !== undefined
+                                    ? options.title
+                                    : route.name;
+
+                        const isFocused = state.index === index;
+
+                        const onPress = () => {
+                            const event = navigation.emit({
+                                type: 'tabPress',
+                                target: route.key,
+                                canPreventDefault: true,
+                            });
+
+                            if (!isFocused && !event.defaultPrevented) {
+                                navigation.navigate(route.name);
+                            }
+
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        };
+
+                        const onLongPress = () => {
+                            navigation.emit({
+                                type: 'tabLongPress',
+                                target: route.key,
+                            });
+                        };
+
+                        let iconName;
+                        if (route.name === 'Home') iconName = isFocused ? 'home' : 'home-outline';
+                        else if (route.name === 'Radar') iconName = isFocused ? 'map' : 'map-outline';
+                        else if (route.name === 'Hourly') iconName = isFocused ? 'time' : 'time-outline';
+                        else if (route.name === 'Alerts') iconName = isFocused ? 'notifications' : 'notifications-outline';
+                        else if (route.name === 'Settings') iconName = isFocused ? 'settings' : 'settings-outline';
+
+                        const color = isFocused ? theme.accent : theme.tabInactive;
+
+                        return (
+                            <TouchableOpacity
+                                accessibilityRole="button"
+                                accessibilityState={isFocused ? { selected: true } : {}}
+                                accessibilityLabel={options.tabBarAccessibilityLabel}
+                                testID={options.tabBarTestID}
+                                onPress={onPress}
+                                onLongPress={onLongPress}
+                                style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 8 }}
+                                key={index}
+                            >
+                                <Ionicons name={iconName} size={24} color={color} />
+                                <Text style={{
+                                    color: color,
+                                    fontSize: 10,
+                                    marginTop: 4,
+                                    fontWeight: isFocused ? '700' : '500' // Bolder when active
+                                }}>
+                                    {label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            )}
+            screenOptions={{
+                swipeEnabled: true,
                 animationEnabled: true,
-            })}
+            }}
         >
             <Tab.Screen
                 name="Home"
