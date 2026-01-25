@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useWeather } from '../context/WeatherContext';
 import { analyzeActivitySafety } from '../utils/weatherSafety';
 
-const ActivityTimeline = ({ hourlyData }) => {
+const ActivityTimeline = ({ hourlyData, currently, currentAnalysis }) => {
     const { theme } = useTheme();
     const { units, selectedActivity } = useWeather();
 
@@ -18,15 +18,34 @@ const ActivityTimeline = ({ hourlyData }) => {
     const timeline = useMemo(() => {
         if (!hourlyData || hourlyData.length === 0) return [];
 
-        return hourlyData.slice(0, 12).map((hourData) => {
+        // 1. Filter for 5 AM - 10 PM
+        const filtered = hourlyData.filter(h => {
+            const hour = new Date(h.time * 1000).getHours();
+            return hour >= 5 && hour <= 22;
+        });
+
+        // 2. Map and Slice (show next 12 available slots)
+        return filtered.slice(0, 12).map((hourData, index) => {
             const { time, temperature } = hourData;
 
-            // Use shared safety logic for this specific hour
-            // We pass the hourData as "currently" since the structure is similar enough for our utility
-            const safety = analyzeActivitySafety(selectedActivity, hourData, units);
+            // Check if this slot is "Now" (same hour as current time)
+            const hourDate = new Date(time * 1000);
+            const now = new Date();
+            const isNow = hourDate.getDate() === now.getDate() && hourDate.getHours() === now.getHours();
 
-            const date = new Date(time * 1000);
-            const hourLabel = date.getHours() === new Date().getHours() ? 'Now' : date.toLocaleTimeString([], { hour: 'numeric' });
+            // VISUAL SYNC:
+            // If this slot is "Now", we MUST use the 'currently' data and 'currentAnalysis' (if available)
+            // to perfectly match the main Home Screen card.
+            const dataToUse = (isNow && currently) ? currently : hourData;
+            let safety;
+
+            if (isNow && currentAnalysis) {
+                safety = currentAnalysis;
+            } else {
+                safety = analyzeActivitySafety(selectedActivity, dataToUse, units);
+            }
+
+            const hourLabel = isNow ? 'Now' : hourDate.toLocaleTimeString([], { hour: 'numeric' });
 
             return {
                 time: hourLabel,
@@ -34,7 +53,7 @@ const ActivityTimeline = ({ hourlyData }) => {
                 safety // { status, label, color }
             };
         });
-    }, [hourlyData, units, selectedActivity]);
+    }, [hourlyData, currently, currentAnalysis, units, selectedActivity]);
 
     if (timeline.length === 0) return null;
 
@@ -45,7 +64,7 @@ const ActivityTimeline = ({ hourlyData }) => {
             shadowColor: theme.shadow
         }]}>
             <Text style={[styles.title, { color: theme.textSecondary }]}>
-                Hourly {activityTitle} Forecast
+                Hourly {activityTitle} Forecast (5 AM - 10 PM)
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
                 {timeline.map((item, index) => (

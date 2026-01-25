@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSmartWindow } from '../hooks/useSmartWindow';
-import { analyzeTemperatureSafety } from '../utils/weatherSafety';
+import { analyzeActivitySafety } from '../utils/weatherSafety';
 import ActivityBadge from './ActivityBadge';
 import { useWeather } from '../context/WeatherContext';
 
@@ -10,40 +10,49 @@ const RunBadge = ({ minutelyData, currently }) => {
     // 1. Check Rain (Threshold 0.2 for running)
     const { isSafeNow, nextWindowStart, nextWindowEnd } = useSmartWindow(minutelyData, 0.2, 15);
 
-    // 2. Check Temperature
-    const tempSafety = analyzeTemperatureSafety(currently, units);
-
-    if (!currently || !tempSafety) return null;
+    // 2. Check Safety using Centralized Logic (Run-specific thresholds)
+    const runSafety = analyzeActivitySafety('run', currently, units);
 
     // Logic Synthesis
     let status = 'safe';
     let message = 'Perfect for a Run';
     let subMessage = 'Conditions are dry & comfortable';
 
-    // Override if temp is unsafe
-    if (tempSafety.status === 'unsafe') {
+    // 1. Safety Check (Temp, Wind, Conditions)
+    if (runSafety.status === 'unsafe' || runSafety.status === 'hazard') {
         status = 'unsafe';
-        message = tempSafety.label;
-        subMessage = 'Stay indoors, it is dangerous.';
+        message = runSafety.label || 'Unsafe Conditions';
+        subMessage = runSafety.advice;
     }
-    // If temp is warning, but rain is safe
-    else if (tempSafety.status === 'warning') {
+    else if (runSafety.status === 'warning' || runSafety.status === 'fair' || runSafety.status === 'poor') {
+        // Decide if we blockade or just warn
+        // If it's "Poor", we treat as Warning/Orange
         status = 'warning';
-        message = tempSafety.label;
-        subMessage = isSafeNow ? 'Dry, but dress appropriately.' : 'Wait for better conditions.';
+        message = runSafety.label; // e.g. "Heat Advisory" or "Poor Conditions"
+        subMessage = runSafety.advice;
     }
-    // If temp is safe, check rain
-    else if (!isSafeNow) {
+
+    // 2. Rain Window Override
+    // Even if temp is perfect, if it's raining now without a window, it's unsafe/warning
+    if (!isSafeNow) {
         if (nextWindowStart) {
             const startStr = new Date(nextWindowStart * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-            status = 'warning';
-            message = 'Rain / Wet';
-            subMessage = `Next dry window starts at ${startStr}`;
+            // If the base status was safe, downgrade to warning for rain
+            if (status === 'safe') {
+                status = 'warning';
+                message = 'Rain / Wet';
+                subMessage = `Next dry window starts at ${startStr}`;
+            }
         } else {
+            // specific logic: if raining and no window, strictly unsafe
             status = 'unsafe';
-            message = 'No Safe Windows';
+            message = 'Rain - No Window';
             subMessage = 'Rain expected for the next hour.';
         }
+    } else if (status === 'safe') {
+        // If generic check passed and rain check passed
+        message = 'Perfect for a Run';
+        subMessage = runSafety.advice;
     }
 
     return (

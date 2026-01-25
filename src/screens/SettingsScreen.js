@@ -10,6 +10,7 @@ import { Barometer } from 'expo-sensors';
 import { checkWeatherAndNotify, registerBackgroundWeatherTask } from '../services/BackgroundWeatherTask';
 import { geocodeAddress } from '../services/LocationService';
 import CitySearchModal from '../components/CitySearchModal';
+import GlassDropdown from '../components/GlassDropdown';
 
 const SettingsScreen = () => {
     const {
@@ -114,39 +115,39 @@ const SettingsScreen = () => {
 
                 {/* Activity Selection */}
                 <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
-                    <Text style={[styles.label, { color: theme.textSecondary }]}>My Primary Activity</Text>
-                    <View style={styles.activityGrid}>
-                        {activities.map((act) => (
-                            <TouchableOpacity
-                                key={act.id}
-                                style={[
-                                    styles.activityBtn,
-                                    { backgroundColor: theme.name === 'day' ? '#E2E8F0' : '#2C2C2C' },
-                                    selectedActivity === act.id && { backgroundColor: theme.accent, borderColor: theme.accent }
-                                ]}
-                                onPress={() => handleUpdateActivity(act.id)}
-                            >
-                                <Ionicons
-                                    name={act.icon}
-                                    size={20}
-                                    color={selectedActivity === act.id ? '#fff' : theme.text}
-                                />
-                                <View>
-                                    <Text style={[
-                                        styles.activityText,
-                                        { color: selectedActivity === act.id ? '#fff' : theme.text }
-                                    ]}>
-                                        {act.label}
-                                    </Text>
-                                    {selectedActivity === act.id && weather?.currently && (
-                                        <Text style={{ fontSize: 10, color: '#fff', opacity: 0.9, fontWeight: '700' }}>
-                                            {require('../utils/weatherSafety').analyzeActivitySafety(act.id, weather.currently, units)?.label || 'Loading...'}
-                                        </Text>
-                                    )}
-                                </View>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                    <GlassDropdown
+                        label="My Primary Activity"
+                        value={selectedActivity}
+                        onSelect={handleUpdateActivity}
+                        options={[
+                            { label: 'Walking', value: 'walk', icon: 'walk-outline', category: 'Basics' },
+                            { label: 'Running', value: 'run', icon: 'speedometer-outline', category: 'Basics' },
+                            { label: 'Cycling', value: 'cycle', icon: 'bicycle-outline', category: 'Wheels' },
+                            { label: 'Hiking', value: 'hike', icon: 'trail-sign-outline', category: 'Basics' },
+
+                            { label: 'Tennis / Pickleball', value: 'tennis', icon: 'tennisball-outline', category: 'Sports' },
+                            { label: 'Golf', value: 'golf', icon: 'golf-outline', category: 'Sports' },
+                            { label: 'Outdoor Yoga', value: 'yoga', icon: 'body-outline', category: 'Sports' },
+
+                            { label: 'Picnic', value: 'picnic', icon: 'basket-outline', category: 'Leisure' },
+                            { label: 'Fishing', value: 'fishing', icon: 'fish-outline', category: 'Leisure' },
+                            { label: 'Stargazing', value: 'stargaze', icon: 'star-outline', category: 'Leisure' },
+                            { label: 'Photography', value: 'camera', icon: 'camera-outline', category: 'Leisure' },
+
+                            { label: 'Motorcycle', value: 'moto', icon: 'bicycle', category: 'Commute' },
+                            { label: 'Driving', value: 'drive', icon: 'car-outline', category: 'Commute' },
+                        ]}
+                    />
+
+                    {/* Live Preview */}
+                    {weather?.currently && (
+                        <View style={{ marginTop: 10, padding: 12, backgroundColor: theme.accent + '15', borderRadius: 12 }}>
+                            <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 4 }}>CURRENT FORECAST</Text>
+                            <Text style={{ fontSize: 14, color: theme.text, fontWeight: '700' }}>
+                                {require('../utils/weatherSafety').analyzeActivitySafety(selectedActivity, weather.currently, units)?.advice || 'Loading...'}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* API Section */}
@@ -354,25 +355,6 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         textTransform: 'uppercase',
         letterSpacing: 1,
-    },
-    activityGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-    },
-    activityBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: 'transparent',
-        gap: 8,
-    },
-    activityText: {
-        fontSize: 13,
-        fontWeight: '700',
     },
     input: {
         padding: 12,

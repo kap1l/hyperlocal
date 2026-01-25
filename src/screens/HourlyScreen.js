@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import GradientBackground from '../components/GradientBackground';
 import { useWeather } from '../context/WeatherContext';
 import { useTheme } from '../context/ThemeContext';
+import { analyzeActivitySafety } from '../utils/weatherSafety';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
     UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -15,90 +16,52 @@ const HourlyScreen = () => {
     const [expandedIds, setExpandedIds] = useState(new Set());
 
     const hourlyData = weather?.hourly?.data || [];
-
-    const calculateReadiness = (item) => {
-        const { temperature, humidity, windSpeed, uvIndex, apparentTemperature, precipProbability } = item;
-        const isMetric = units === 'si';
-        const tempF = isMetric ? (temperature * 9 / 5) + 32 : temperature;
-        const feelsLikeF = isMetric ? (apparentTemperature * 9 / 5) + 32 : apparentTemperature;
-
-        let score = 100;
-        let reasons = [];
-
-        // --- ACTIVITY SPECIFIC THRESHOLDS ---
-
-        // 1. Temperature Deductions
-        if (selectedActivity === 'run') {
-            if (tempF > 85 || feelsLikeF > 90) { score -= 45; reasons.push("High Heat"); }
-            else if (tempF < 20) { score -= 40; reasons.push("Extreme Cold"); }
-        } else if (selectedActivity === 'cycle') {
-            if (tempF > 95) { score -= 40; reasons.push("Extreme Heat"); }
-            else if (tempF < 30) { score -= 50; reasons.push("Windchill"); }
-        } else {
-            if (tempF < 10 || feelsLikeF < 5) { score -= 60; reasons.push("Extreme Cold"); }
-            else if (tempF < 32 || feelsLikeF < 25) { score -= 40; reasons.push("Freezing"); }
-            else if (tempF > 100) { score -= 60; reasons.push("Extreme Heat"); }
-        }
-
-        // 2. Rain Deductions
-        if (precipProbability > 0.2) {
-            if (selectedActivity === 'camera') { score -= 70; reasons.push("Rain Gear Hazard"); }
-            else if (selectedActivity === 'cycle') { score -= 60; reasons.push("Heavy Rain/Slippery"); }
-            else { score -= 50; reasons.push("Rain"); }
-        }
-
-        // 3. Wind Deductions
-        if (windSpeed > 15) {
-            if (selectedActivity === 'cycle') { score -= 45; reasons.push("Strong Headwinds"); }
-            else if (selectedActivity === 'camera') { score -= 40; reasons.push("Camera Shake"); }
-            else if (windSpeed > 25) { score -= 40; reasons.push("Heavy Gales"); }
-        }
-
-        // 4. UV Deductions
-        if (uvIndex > 8 && selectedActivity !== 'drive') {
-            score -= 15;
-            reasons.push("High UV");
-        }
-
-        let status = 'Good';
-        let color = '#22c55e';
-        let icon = 'checkmark-circle-outline';
-
-        if (score < 40) {
-            status = 'Poor';
-            color = '#ef4444';
-            icon = 'close-circle-outline';
-        } else if (score < 75) {
-            status = 'Fair';
-            color = '#f59e0b';
-            icon = 'alert-circle-outline';
-        }
-
-        return { status, color, icon, reasons, score };
-    };
+    const minutely = weather?.minutely?.data;
+    const currently = weather?.currently;
 
     const sections = useMemo(() => {
         if (!hourlyData.length) return [];
 
         const groups = {
-            'Morning (6AM - 12PM)': [],
+            'Morning (5AM - 12PM)': [],
             'Afternoon (12PM - 6PM)': [],
-            'Evening (6PM - 10PM)': [],
-            'Night (10PM - 6AM)': []
+            'Evening (6PM - 10PM)': []
         };
 
-        hourlyData.slice(0, 24).forEach(item => {
+        // Filter 5 AM - 10 PM
+        const filtered = hourlyData.filter(item => {
             const hour = new Date(item.time * 1000).getHours();
-            if (hour >= 6 && hour < 12) groups['Morning (6AM - 12PM)'].push(item);
-            else if (hour >= 12 && hour < 18) groups['Afternoon (12PM - 6PM)'].push(item);
-            else if (hour >= 18 && hour < 22) groups['Evening (6PM - 10PM)'].push(item);
-            else groups['Night (10PM - 6AM)'].push(item);
+            return hour >= 5 && hour <= 22;
+        });
+
+        filtered.slice(0, 24).forEach(item => {
+            const date = new Date(item.time * 1000);
+            const hour = date.getHours();
+            const now = new Date();
+            const isNow = date.getDate() === now.getDate() && hour === now.getHours();
+
+            // SYNC OVERRIDE: Use 'currently' data if it's the current hour
+            const dataToUse = (isNow && currently) ? currently : item;
+
+            // Calculate safety using the CENTRALIZED utility
+            const analysis = analyzeActivitySafety(selectedActivity || 'walk', dataToUse, units);
+
+            // Enrich the item with analysis data for rendering
+            const enrichedItem = {
+                ...item,
+                ...dataToUse, // Ensure temp etc match
+                analysis // { status, color, advice, metrics }
+            };
+
+            if (hour >= 5 && hour < 12) groups['Morning (5AM - 12PM)'].push(enrichedItem);
+            else if (hour >= 12 && hour < 18) groups['Afternoon (12PM - 6PM)'].push(enrichedItem);
+            else if (hour >= 18 && hour <= 22) groups['Evening (6PM - 10PM)'].push(enrichedItem);
         });
 
         return Object.entries(groups)
             .filter(([_, data]) => data.length > 0)
             .map(([title, data]) => ({ title, data }));
-    }, [hourlyData]);
+    }, [hourlyData, currently, selectedActivity, units]);
 
     const toggleExpand = (id) => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -115,7 +78,14 @@ const HourlyScreen = () => {
         const ampm = hour >= 12 ? 'pm' : 'am';
         const hourDisp = hour % 12 || 12;
 
-        const readiness = calculateReadiness(item);
+        const readiness = item.analysis;
+
+        // Map safety score to icon (approximate since we don't have icon in safety object, logic can be inferred)
+        let icon = 'checkmark-circle-outline';
+        if (readiness.status === 'Poor' || readiness.status === 'Hazardous') icon = 'close-circle-outline';
+        else if (readiness.status === 'Fair') icon = 'alert-circle-outline';
+
+        const mainReason = readiness.advice;
 
         return (
             <TouchableOpacity
@@ -135,7 +105,7 @@ const HourlyScreen = () => {
                 <View style={styles.cardHeader}>
                     <View style={styles.timeSection}>
                         <Text style={[styles.time, { color: theme.text }]}>{hourDisp}{ampm}</Text>
-                        <Text style={[styles.statusText, { color: readiness.color }]}>{readiness.status}</Text>
+                        <Text style={[styles.statusText, { color: readiness.color }]}>{readiness.label}</Text>
                     </View>
 
                     <View style={styles.mainInfo}>
@@ -145,15 +115,15 @@ const HourlyScreen = () => {
                                 <Text style={[styles.summary, { color: theme.textSecondary }]} numberOfLines={1}>
                                     {item.summary}
                                 </Text>
-                                <Text style={[styles.reasonText, { color: readiness.reasons.length > 0 ? readiness.color : theme.success }]}>
-                                    {readiness.reasons.length > 0 ? readiness.reasons[0] : `Optimal for ${selectedActivity}`}
+                                <Text style={[styles.reasonText, { color: readiness.color }]} numberOfLines={1}>
+                                    {mainReason}
                                 </Text>
                             </View>
                         </View>
                     </View>
 
                     <View style={styles.iconBox}>
-                        <Ionicons name={readiness.icon} size={28} color={readiness.color} />
+                        <Ionicons name={icon} size={28} color={readiness.color} />
                     </View>
                 </View>
 
@@ -181,11 +151,9 @@ const HourlyScreen = () => {
                                 <Text style={[styles.statValue, { color: theme.text }]}>{Math.round(item.apparentTemperature)}°</Text>
                             </View>
                         </View>
-                        {readiness.reasons.length > 1 && (
-                            <Text style={[styles.fullReasons, { color: theme.textSecondary }]}>
-                                Issues: {readiness.reasons.join(' • ')}
-                            </Text>
-                        )}
+                        <Text style={[styles.fullReasons, { color: theme.textSecondary }]}>
+                            {readiness.advice}
+                        </Text>
                     </View>
                 )}
             </TouchableOpacity>
