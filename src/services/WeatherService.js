@@ -12,6 +12,9 @@ export const fetchWeather = async (apiKey, lat, lon, units = 'us') => {
             throw new Error(`Weather fetch failed: ${response.statusText}`);
         }
         const data = await response.json();
+        // Add coordinates to data for easy access by components
+        data.latitude = lat;
+        data.longitude = lon;
         return data;
     } catch (error) {
         console.error("Error fetching weather:", error);

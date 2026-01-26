@@ -16,6 +16,14 @@ export const findBestTimeSlots = (hourlyData, activityId, units = 'us', targetDa
     // 1. Score every single hour
     const scoredHours = hourlyData.map(hour => {
         const analysis = analyzeActivitySafety(activityId, hour, units);
+        if (!analysis) {
+            return {
+                time: hour.time,
+                score: 0,
+                advice: 'Data unavailable',
+                hourData: hour
+            };
+        }
         return {
             time: hour.time,
             score: analysis.score,

@@ -11,8 +11,6 @@ import { useTheme } from '../context/ThemeContext';
 const OfflineBanner = ({ isOffline, lastUpdated }) => {
     const { theme } = useTheme();
 
-    if (!isOffline && !lastUpdated) return null;
-
     // Calculate how long ago data was updated
     const getTimeAgo = () => {
         if (!lastUpdated) return 'Unknown';

@@ -15,7 +15,9 @@ export const generateDailySummary = (weather, activity) => {
 
     // Analyze hourly blocks
     hourly.forEach(hour => {
-        const analysis = analyzeActivitySafety(activity, hour, 'us'); // defaulting 'us' for internal calc
+        const analysis = analyzeActivitySafety(activity, hour, 'us');
+        if (!analysis) return; // Skip if analysis fails
+
         const hourNum = new Date(hour.time * 1000).getHours();
 
         if (analysis.score >= 80) bestWindows.push(hourNum);

@@ -32,9 +32,18 @@ const ExtendedActivityCard = ({ currently, analysis, onFindBestTime }) => {
                 </View>
 
                 <View style={styles.headerInfo}>
-                    <View style={[styles.statusBadge, { backgroundColor: color + '20' }]}>
-                        <Ionicons name={score > 80 ? "shield-checkmark" : "warning-outline"} size={14} color={color} />
-                        <Text style={[styles.statusText, { color: color }]}>{status.toUpperCase()}</Text>
+                    <View style={styles.statusRow}>
+                        <View style={[styles.statusBadge, { backgroundColor: color + '20' }]}>
+                            <Ionicons name={score > 80 ? "shield-checkmark" : "warning-outline"} size={14} color={color} />
+                            <Text style={[styles.statusText, { color: color }]}>{status.toUpperCase()}</Text>
+                        </View>
+                        {/* Feels Like Indicator */}
+                        <View style={[styles.feelsLikeBadge, { backgroundColor: theme.cardBg }]}>
+                            <Ionicons name="thermometer-outline" size={12} color={theme.textSecondary} />
+                            <Text style={[styles.feelsLikeText, { color: theme.textSecondary }]}>
+                                Feels {typeof currently.apparentTemperature === 'number' ? Math.round(currently.apparentTemperature) : '--'}°
+                            </Text>
+                        </View>
                     </View>
                     <Text style={[styles.headline, { color: theme.text }]}>
                         {selectedActivity.charAt(0).toUpperCase() + selectedActivity.slice(1)} Forecast
@@ -129,6 +138,23 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
         borderRadius: 12,
         alignSelf: 'flex-start',
+    },
+    statusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    feelsLikeBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    feelsLikeText: {
+        fontSize: 11,
+        fontWeight: '600',
     },
     statusText: {
         fontSize: 11,

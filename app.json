@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "MicroRain Local",
-    "slug": "microrain-local",
+    "name": "MicroWeather",
+    "slug": "microweather",
     "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,7 +16,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.microrainlocal",
+      "bundleIdentifier": "com.anonymous.microweather",
       "infoPlist": {
         "UIBackgroundModes": [
           "location",
@@ -30,7 +30,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.microrainlocal",
+      "package": "com.anonymous.microweather",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -55,7 +55,7 @@
           "widgets": [
             {
               "name": "WeatherWidget",
-              "label": "MicroRain Activity",
+              "label": "MicroWeather Activity",
               "minWidth": "180dp",
               "minHeight": "110dp",
               "description": "Shows your activity score at a glance",

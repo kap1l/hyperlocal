@@ -121,7 +121,7 @@ export const checkWeatherAndNotify = async (isManual = false) => {
                     if (!hourly[i]) break;
                     const safety = analyzeActivitySafety(activityId, hourly[i], units);
 
-                    if (safety.status === 'safe') {
+                    if (safety && safety.score >= 70) { // Changed from status check to score check
                         if (currentStart === -1) currentStart = i;
                         currentDuration++;
                     } else {
@@ -189,7 +189,7 @@ export const checkWeatherAndNotify = async (isManual = false) => {
             // Trigger Mobile Notification
             await Notifications.scheduleNotificationAsync({
                 content: {
-                    title: morningMessage ? "Daily Activity Planner 📅" : "MicroRain Alert 🌦️",
+                    title: morningMessage ? "Daily Activity Planner 📅" : "MicroWeather Alert 🌦️",
                     body: finalMessage,
                     sound: true,
                     priority: Notifications.AndroidNotificationPriority.MAX,

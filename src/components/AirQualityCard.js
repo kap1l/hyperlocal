@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -11,18 +11,27 @@ const AirQualityCard = () => {
     const [aqiData, setAqiData] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // Create stable coordinate reference to prevent infinite loops
+    const coords = useMemo(() => {
+        if (!weather?.latitude || !weather?.longitude) return null;
+        return { lat: weather.latitude, lon: weather.longitude };
+    }, [weather?.latitude, weather?.longitude]);
+
     useEffect(() => {
         const loadAQI = async () => {
-            if (!weather?.latitude || !weather?.longitude) return;
+            if (!coords) {
+                setLoading(false);
+                return;
+            }
 
             setLoading(true);
-            const data = await fetchAirQuality(weather.latitude, weather.longitude);
+            const data = await fetchAirQuality(coords.lat, coords.lon);
             setAqiData(data);
             setLoading(false);
         };
 
         loadAQI();
-    }, [weather?.latitude, weather?.longitude]);
+    }, [coords]);
 
     if (loading) {
         return (

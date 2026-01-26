@@ -109,13 +109,10 @@ export const WeatherProvider = ({ children }) => {
                 coords = await getCurrentLocation();
 
                 // Save specific coords for next launch
-                const { saveLastKnownLocation, reverseGeocode } = require('../services/StorageService'); // Late import to avoid cycle if any
-                // Actually StorageService is already imported
-                const { saveLastKnownLocation: saveLoc } = require('../services/StorageService');
-                saveLoc(coords);
+                saveLastKnownLocation(coords);
 
-                const { reverseGeocode: revGeo } = require('../services/LocationService');
-                name = await revGeo(coords.latitude, coords.longitude);
+                const { reverseGeocode } = require('../services/LocationService');
+                name = await reverseGeocode(coords.latitude, coords.longitude);
             }
 
             // 2. Fetch Weather

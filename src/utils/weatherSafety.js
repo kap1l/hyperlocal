@@ -137,7 +137,18 @@ export const analyzeActivitySafety = (activityId, currently, units = 'us') => {
     if (!currently) return null;
 
     const isMetric = units === 'si';
-    const tempF = isMetric ? (currently.temperature * 9 / 5) + 32 : currently.temperature;
+
+    // Use Apparent Temperature (Feels Like) for safety checks involving exposure
+    // This accounts for Wind Chill in winter and Heat Index in summer
+    const rawTemp = currently.temperature;
+    const feelsLike = currently.apparentTemperature !== undefined ? currently.apparentTemperature : rawTemp;
+
+    const rawTempF = isMetric ? (rawTemp * 9 / 5) + 32 : rawTemp;
+    const feelsLikeF = isMetric ? (feelsLike * 9 / 5) + 32 : feelsLike;
+
+    // For most outdoor activities, "Feels Like" is more important than raw temp
+    const tempF = feelsLikeF;
+
     const windMph = isMetric ? currently.windSpeed * 0.621371 : currently.windSpeed;
     const precip = currently.precipProbability || 0;
     const uv = currently.uvIndex || 0;
@@ -200,6 +211,9 @@ export const analyzeActivitySafety = (activityId, currently, units = 'us') => {
                 score -= 30;
                 metrics.push({ name: 'Cond', value: 'Rain', status: 'poor' });
                 advice = "Wet run. Watch your step.";
+            } else if (tempF < 10) { // Wind Chill Alert
+                advice = "Dangerously low wind chill. Cover all skin.";
+                metrics.push({ name: 'Chill', value: 'Low', status: 'poor' });
             } else if (isRainRisk) {
                 score -= 10;
                 metrics.push({ name: 'Risk', value: 'Rainy', status: 'fair' });
@@ -222,7 +236,8 @@ export const analyzeActivitySafety = (activityId, currently, units = 'us') => {
                 evaluateMetric('UV', uv, thresholds.uv.ideal, thresholds.uv.warning, '');
             }
 
-            if (isSnowing) {
+            if (tempF < 20) advice = "Severe Wind Chill. Limit exposure."; // Added check
+            else if (isSnowing) {
                 score -= 60;
                 metrics.push({ name: 'Cond', value: 'Snow', status: 'poor' });
                 advice = "Snow/Ice risk. Trails slippery.";
@@ -250,6 +265,9 @@ export const analyzeActivitySafety = (activityId, currently, units = 'us') => {
                 score -= 80;
                 metrics.push({ name: 'Road', value: 'Icy', status: 'poor' });
                 advice = "Too dangerous. Ice on roads.";
+            } else if (visibility < 1) { // Fog Check
+                score -= 40;
+                advice = "Heavy fog. Be extremely visible.";
             } else if (isRaining) {
                 score -= 50;
                 metrics.push({ name: 'Road', value: 'Wet', status: 'poor' });
@@ -300,11 +318,14 @@ export const analyzeActivitySafety = (activityId, currently, units = 'us') => {
             } else if (isHeavyRain) {
                 score -= 40;
                 advice = "Hydroplaning risk. Slow down.";
+            } else if (visibility < 0.5) { // Dense Fog logic
+                score -= 60;
+                advice = "Zero visibility. Pull over if needed.";
+            } else if (visibility < 2) {
+                score -= 40;
+                advice = "Foggy conditions. Use low beams.";
             } else if (isRainRisk) {
                 advice = "Roads might be damp.";
-            } else if (visibility < 2) {
-                score -= 50;
-                advice = "Foggy. Use low beams.";
             }
             evaluateMetric('Vis', visibility, [5, 10], [2, 10], 'mi');
             break;
