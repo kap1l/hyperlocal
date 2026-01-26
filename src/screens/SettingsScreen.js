@@ -326,7 +326,7 @@ const SettingsScreen = () => {
 
                 <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
                     <Text style={[styles.label, { color: theme.textSecondary }]}>Version</Text>
-                    <Text style={[styles.info, { color: theme.textSecondary }]}>MicroRain Local v1.5.0 (Activity Core)</Text>
+                    <Text style={[styles.info, { color: theme.textSecondary }]}>MicroWeather Local v1.5.0 (Activity Core)</Text>
 
                     <TouchableOpacity
                         style={[styles.button, { backgroundColor: '#EF4444', marginTop: 20 }]}

@@ -1,4 +1,4 @@
-# MicroRain Local
+# MicroWeather
 
 Hyperlocal weather for runners.
 
