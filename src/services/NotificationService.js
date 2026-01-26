@@ -52,7 +52,7 @@ export const scheduleDailyBriefing = async () => {
     await Notifications.scheduleNotificationAsync({
         content: {
             title: "Good Morning! ☀️",
-            body: "Check today's MicroWeather forecast before you head out.",
+            body: "Check today's microWeather forecast before you head out.",
             sound: true,
         },
         trigger: {

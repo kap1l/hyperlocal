@@ -1,4 +1,4 @@
-# MicroWeather v1.0 - Pre-Launch Testing Report
+# microWeather v1.0 - Pre-Launch Testing Report
 **Date:** January 25, 2026  
 **Status:** ✅ READY TO SHIP (with fixes applied)
 

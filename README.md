@@ -1,4 +1,4 @@
-# MicroWeather
+# microWeather
 
 Hyperlocal weather for runners.
 
