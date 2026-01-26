@@ -22,7 +22,6 @@ const SettingsScreen = () => {
     } = useWeather();
     const { theme, mode, setMode, useOled, toggleOled } = useTheme();
 
-    const [keyInput, setKeyInput] = useState(apiKey || '');
     const [barometerEnabled, setBarometerEnabled] = useState(false);
     const [alertsEnabled, setAlertsEnabled] = useState(true);
     const [isTesting, setIsTesting] = useState(false);
@@ -32,9 +31,8 @@ const SettingsScreen = () => {
     const [isGeocoding, setIsGeocoding] = useState(false);
 
     useEffect(() => {
-        setKeyInput(apiKey || '');
         loadAlertsState();
-    }, [apiKey]);
+    }, []);
 
     const loadAlertsState = async () => {
         const saved = await AsyncStorage.getItem('@alerts_enabled');
@@ -68,11 +66,7 @@ const SettingsScreen = () => {
         }
     };
 
-    const saveKey = () => {
-        setApiKey(keyInput);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Saved", "API Key updated.");
-    };
+
 
     const handleSearchLocation = async () => {
         if (!locationInput.trim()) return;
@@ -107,6 +101,38 @@ const SettingsScreen = () => {
         { id: 'camera', label: 'Photo/Film', icon: 'camera-outline' },
         { id: 'drive', label: 'Driving', icon: 'car-outline' }
     ];
+
+    const handleWipeData = () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        Alert.alert(
+            "Clear All Data?",
+            "This will reset your location history, activity preferences, and cached weather. This cannot be undone.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete Everything",
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await AsyncStorage.clear();
+                            // Note: We do NOT clear SecureStore to preserve the API Key
+                            // since the user can no longer manually enter it.
+
+                            setLocationConfig({ mode: 'auto' });
+                            setUnits('us');
+                            setMode('system');
+                            setSelectedActivity('walk');
+
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            Alert.alert("Data Cleared", "The app has been reset to factory defaults.");
+                        } catch (e) {
+                            Alert.alert("Error", "Failed to clear data: " + e.message);
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
     return (
         <GradientBackground>
@@ -150,21 +176,7 @@ const SettingsScreen = () => {
                     )}
                 </View>
 
-                {/* API Section */}
-                <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
-                    <Text style={[styles.label, { color: theme.textSecondary }]}>Weather API Key</Text>
-                    <TextInput
-                        style={[styles.input, { backgroundColor: theme.name === 'day' ? '#E2E8F0' : '#2C2C2C', color: theme.text }]}
-                        value={keyInput}
-                        onChangeText={setKeyInput}
-                        placeholder="Enter API Key"
-                        placeholderTextColor={theme.textSecondary}
-                        secureTextEntry
-                    />
-                    <TouchableOpacity style={[styles.button, { backgroundColor: theme.accent }]} onPress={saveKey}>
-                        <Text style={[styles.buttonText, { color: theme.name === 'day' ? '#fff' : '#000' }]}>Update Key</Text>
-                    </TouchableOpacity>
-                </View>
+
 
                 {/* Location Settings */}
                 <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
@@ -315,6 +327,13 @@ const SettingsScreen = () => {
                 <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
                     <Text style={[styles.label, { color: theme.textSecondary }]}>Version</Text>
                     <Text style={[styles.info, { color: theme.textSecondary }]}>MicroRain Local v1.5.0 (Activity Core)</Text>
+
+                    <TouchableOpacity
+                        style={[styles.button, { backgroundColor: '#EF4444', marginTop: 20 }]}
+                        onPress={handleWipeData}
+                    >
+                        <Text style={[styles.buttonText, { color: '#fff' }]}>Delete All App Data</Text>
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
             <CitySearchModal
