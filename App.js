@@ -2,25 +2,15 @@ import React, { useEffect, Component } from 'react';
 import { Platform, View, Text, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
+import Constants from 'expo-constants';
 
 import { WeatherProvider } from './src/context/WeatherContext';
 import { ThemeProvider } from './src/context/ThemeContext';
+import { SubscriptionProvider } from './src/context/SubscriptionContext';
 import AppNavigator from './src/navigation/AppNavigator';
-import { registerBackgroundWeatherTask } from './src/services/BackgroundWeatherTask';
 
-// Register Android Widget Task Handler
-import './src/widgets/widgetTaskHandler';
-
-// Configure how notifications should behave when app is in foreground
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-    }),
-});
+const isExpoGo = Constants.appOwnership === 'expo';
 
 class ErrorBoundary extends Component {
     constructor(props) {
@@ -75,50 +65,26 @@ const AppContent = () => {
     useEffect(() => {
         async function setupMobile() {
             if (Platform.OS === 'web') return;
+            if (isExpoGo) console.log('Running in Expo Go');
 
-            // 1. Android Notification Channel (Required for Android 8.0+)
-            if (Platform.OS === 'android') {
-                await Notifications.setNotificationChannelAsync('weather-alerts', {
-                    name: 'Weather Alerts',
-                    importance: Notifications.AndroidImportance.MAX,
-                    vibrationPattern: [0, 250, 250, 250],
-                    lightColor: '#BB86FC',
-                });
-            }
-
-            // 2. Request Permissions
-            const { status: existingStatus } = await Notifications.getPermissionsAsync();
-            let finalStatus = existingStatus;
-            if (existingStatus !== 'granted') {
-                const { status } = await Notifications.requestPermissionsAsync();
-                finalStatus = status;
-            }
-
-            // 3. Location Permissions
             const { status: foreStatus } = await Location.requestForegroundPermissionsAsync();
             if (foreStatus === 'granted') {
-                // Background location is needed for the 15-min background check
                 await Location.requestBackgroundPermissionsAsync();
             }
-
-            // 4. Register Background Task if permitted
-            if (finalStatus === 'granted') {
-                await registerBackgroundWeatherTask();
-                console.log("Mobile background task registration attempted");
-            }
         }
-
         setupMobile();
     }, []);
 
     return (
         <SafeAreaProvider>
             <ThemeProvider>
-                <WeatherProvider>
-                    <NavigationContainer>
-                        <AppNavigator />
-                    </NavigationContainer>
-                </WeatherProvider>
+                <SubscriptionProvider>
+                    <WeatherProvider>
+                        <NavigationContainer>
+                            <AppNavigator />
+                        </NavigationContainer>
+                    </WeatherProvider>
+                </SubscriptionProvider>
             </ThemeProvider>
         </SafeAreaProvider>
     );

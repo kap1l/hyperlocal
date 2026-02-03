@@ -123,7 +123,7 @@ export const WeatherProvider = ({ children }) => {
             await saveWeatherData(data);
 
             // Update Android widget with latest data
-            updateWidgetData(data, selectedActivity, units);
+            updateWidgetData(data, selectedActivity || 'walk', units);
 
         } catch (e) {
             setError(e.message);

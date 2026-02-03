@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, View, Text, TextInput, Switch, StyleSheet, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, TextInput, Switch, StyleSheet, TouchableOpacity, Alert, Platform, ActivityIndicator, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import GradientBackground from '../components/GradientBackground';
@@ -11,6 +12,7 @@ import { checkWeatherAndNotify, registerBackgroundWeatherTask } from '../service
 import { geocodeAddress } from '../services/LocationService';
 import CitySearchModal from '../components/CitySearchModal';
 import GlassDropdown from '../components/GlassDropdown';
+import { useSubscription } from '../context/SubscriptionContext';
 
 const SettingsScreen = () => {
     const {
@@ -21,6 +23,7 @@ const SettingsScreen = () => {
         weather // Needed for live safety check
     } = useWeather();
     const { theme, mode, setMode, useOled, toggleOled } = useTheme();
+    const { isPro, purchasePro, restorePurchases } = useSubscription(); // Now uses the safe mock context
 
     const [barometerEnabled, setBarometerEnabled] = useState(false);
     const [alertsEnabled, setAlertsEnabled] = useState(true);
@@ -56,8 +59,17 @@ const SettingsScreen = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setIsTesting(true);
         try {
+            // Request notification permissions first
+            const { status } = await Notifications.requestPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert("Permission Denied", "Please enable notifications in your phone settings to receive weather alerts.");
+                setIsTesting(false);
+                return;
+            }
+
             await checkWeatherAndNotify(true);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert("Success!", "Test notification sent! Check your notification shade.");
         } catch (error) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             Alert.alert("Notification Failed", error.message);
@@ -95,11 +107,18 @@ const SettingsScreen = () => {
     };
 
     const activities = [
-        { id: 'walk', label: 'Walking', icon: 'walk-outline' },
-        { id: 'run', label: 'Running', icon: 'speedometer-outline' },
-        { id: 'cycle', label: 'Cycling', icon: 'bicycle-outline' },
-        { id: 'camera', label: 'Photo/Film', icon: 'camera-outline' },
-        { id: 'drive', label: 'Driving', icon: 'car-outline' }
+        { id: 'walk', label: 'Walking', icon: 'walk-outline', locked: false },
+        { id: 'run', label: 'Running', icon: 'speedometer-outline', locked: false },
+        { id: 'drive', label: 'Driving', icon: 'car-outline', locked: false },
+        // Premium Activities
+        { id: 'cycle', label: 'Cycling', icon: 'bicycle-outline', locked: !isPro },
+        { id: 'camera', label: 'Photo/Film', icon: 'camera-outline', locked: !isPro },
+        { id: 'hike', label: 'Hiking', icon: 'trail-sign-outline', locked: !isPro },
+        { id: 'tennis', label: 'Tennis', icon: 'tennisball-outline', locked: !isPro },
+        { id: 'golf', label: 'Golf', icon: 'golf-outline', locked: !isPro },
+        { id: 'yoga', label: 'Outdoor Yoga', icon: 'body-outline', locked: !isPro },
+        { id: 'fishing', label: 'Fishing', icon: 'fish-outline', locked: !isPro },
+        { id: 'stargaze', label: 'Stargazing', icon: 'star-outline', locked: !isPro },
     ];
 
     const handleWipeData = () => {
@@ -137,32 +156,40 @@ const SettingsScreen = () => {
     return (
         <GradientBackground>
             <ScrollView contentContainerStyle={styles.container}>
-                <Text style={[styles.header, { color: theme.text }]}>Settings</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <Text style={[styles.header, { color: theme.text, marginBottom: 0 }]}>Settings</Text>
+                    {!isPro && (
+                        <TouchableOpacity onPress={purchasePro} style={{ backgroundColor: theme.accent, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
+                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>GO PRO</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
 
                 {/* Activity Selection */}
                 <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
                     <GlassDropdown
                         label="My Primary Activity"
                         value={selectedActivity}
-                        onSelect={handleUpdateActivity}
-                        options={[
-                            { label: 'Walking', value: 'walk', icon: 'walk-outline', category: 'Basics' },
-                            { label: 'Running', value: 'run', icon: 'speedometer-outline', category: 'Basics' },
-                            { label: 'Cycling', value: 'cycle', icon: 'bicycle-outline', category: 'Wheels' },
-                            { label: 'Hiking', value: 'hike', icon: 'trail-sign-outline', category: 'Basics' },
-
-                            { label: 'Tennis / Pickleball', value: 'tennis', icon: 'tennisball-outline', category: 'Sports' },
-                            { label: 'Golf', value: 'golf', icon: 'golf-outline', category: 'Sports' },
-                            { label: 'Outdoor Yoga', value: 'yoga', icon: 'body-outline', category: 'Sports' },
-
-                            { label: 'Picnic', value: 'picnic', icon: 'basket-outline', category: 'Leisure' },
-                            { label: 'Fishing', value: 'fishing', icon: 'fish-outline', category: 'Leisure' },
-                            { label: 'Stargazing', value: 'stargaze', icon: 'star-outline', category: 'Leisure' },
-                            { label: 'Photography', value: 'camera', icon: 'camera-outline', category: 'Leisure' },
-
-                            { label: 'Motorcycle', value: 'moto', icon: 'bicycle', category: 'Commute' },
-                            { label: 'Driving', value: 'drive', icon: 'car-outline', category: 'Commute' },
-                        ]}
+                        onSelect={(id) => {
+                            const act = activities.find(a => a.id === id);
+                            if (act?.locked) {
+                                Alert.alert(
+                                    "Premium Feature 🔒",
+                                    "Upgrade to OutWeather+ to unlock advanced activities like Cycling, Golf, and Photography.",
+                                    [
+                                        { text: "Cancel", style: "cancel" },
+                                        { text: "Upgrade ($1.99/mo)", onPress: purchasePro }
+                                    ]
+                                );
+                                return;
+                            }
+                            handleUpdateActivity(id);
+                        }}
+                        options={activities.map(a => ({
+                            ...a,
+                            label: a.locked ? `${a.label} 🔒` : a.label,
+                            value: a.id
+                        }))}
                     />
 
                     {/* Live Preview */}
@@ -177,6 +204,92 @@ const SettingsScreen = () => {
                 </View>
 
 
+                {/* Data Source API Settings */}
+                <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
+                    <Text style={[styles.label, { color: theme.textSecondary }]}>Data Source (Advanced)</Text>
+
+                    <View style={styles.row}>
+                        <View style={{ flex: 1, paddingRight: 10 }}>
+                            <Text style={{ fontSize: 14, color: theme.text, fontWeight: '600' }}>Bring Your Own Key</Text>
+                            <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                                Use your own PirateWeather API key for raw data access.
+                            </Text>
+                        </View>
+                        <Switch
+                            value={!!apiKey}
+                            onValueChange={(val) => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                if (!val) {
+                                    Alert.alert(
+                                        "Remove Custom Key?",
+                                        "The app requires an API key to function. Removing yours will stop weather updates.",
+                                        [
+                                            { text: "Cancel", style: "cancel" },
+                                            { text: "Remove", style: "destructive", onPress: () => setApiKey(null) }
+                                        ]
+                                    );
+                                }
+                            }}
+                            trackColor={{ false: "#767577", true: theme.accent }}
+                            thumbColor={!!apiKey ? theme.accent : "#f4f3f4"}
+                        />
+                    </View>
+
+                    {/* API Key Input Area */}
+                    <View style={{ marginTop: 15 }}>
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TextInput
+                                style={[styles.input, {
+                                    backgroundColor: theme.background,
+                                    color: theme.text,
+                                    borderColor: theme.glassBorder,
+                                    borderWidth: 1,
+                                    flex: 1
+                                }]}
+                                placeholder="Enter Pirate Weather API Key"
+                                placeholderTextColor={theme.textSecondary}
+                                value={apiKey || ''}
+                                onChangeText={setApiKey}
+                                autoCapitalize="none"
+                                secureTextEntry
+                            />
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: theme.accent,
+                                    justifyContent: 'center',
+                                    paddingHorizontal: 16,
+                                    borderRadius: 8,
+                                    height: 45 // Match input height roughly
+                                }}
+                                onPress={() => {
+                                    if (!apiKey) return;
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                    // Trigger a refresh to validate
+                                    checkWeatherAndNotify(true)
+                                        .then(() => {
+                                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                            Alert.alert("Success", "API Key is valid and working!");
+                                        })
+                                        .catch(err => {
+                                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                                            Alert.alert("Validation Failed", "Check your key: " + err.message);
+                                        });
+                                }}
+                            >
+                                <Ionicons name="checkmark" size={20} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            onPress={() => Linking.openURL('https://pirateweather.net/en/latest/API/')}
+                            style={{ alignSelf: 'flex-start', marginTop: 8 }}
+                        >
+                            <Text style={{ color: theme.accent, fontSize: 12, fontWeight: '600' }}>
+                                Get a free key from PirateWeather.net ↗
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
 
                 {/* Location Settings */}
                 <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
@@ -192,13 +305,30 @@ const SettingsScreen = () => {
                             <Text style={[styles.tabText, { color: locationConfig.mode === 'auto' ? '#fff' : theme.textSecondary }]}>Auto (GPS)</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[styles.tab, locationConfig.mode === 'manual' && { backgroundColor: theme.accent }]}
+                            style={[
+                                styles.tab,
+                                locationConfig.mode === 'manual' && { backgroundColor: theme.accent },
+                                !isPro && { opacity: 0.5 }
+                            ]}
                             onPress={() => {
+                                if (!isPro) {
+                                    Alert.alert(
+                                        "Travel Mode Locked 🔒",
+                                        "Searching for other cities is a Premium feature. Free version is GPS only.",
+                                        [
+                                            { text: "Cancel", style: "cancel" },
+                                            { text: "Unlock ($1.99/mo)", onPress: purchasePro }
+                                        ]
+                                    );
+                                    return;
+                                }
                                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                 setLocationConfig({ ...locationConfig, mode: 'manual' });
                             }}
                         >
-                            <Text style={[styles.tabText, { color: locationConfig.mode === 'manual' ? '#fff' : theme.textSecondary }]}>Manual</Text>
+                            <Text style={[styles.tabText, { color: locationConfig.mode === 'manual' ? '#fff' : theme.textSecondary }]}>
+                                {isPro ? 'Manual Search' : 'Manual (Pro 🔒)'}
+                            </Text>
                         </TouchableOpacity>
                     </View>
 
@@ -326,7 +456,17 @@ const SettingsScreen = () => {
 
                 <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
                     <Text style={[styles.label, { color: theme.textSecondary }]}>Version</Text>
-                    <Text style={[styles.info, { color: theme.textSecondary }]}>microWeather Local v1.5.0 (Activity Core)</Text>
+                    <Text style={[styles.info, { color: theme.textSecondary }]}>OutWeather Local v1.5.0 (Activity Core)</Text>
+
+                    <TouchableOpacity
+                        style={[styles.button, { backgroundColor: theme.text + '20', marginTop: 20 }]}
+                        onPress={async () => {
+                            await AsyncStorage.removeItem('@onboarding_complete');
+                            Alert.alert('Done', 'Onboarding tutorial will be shown on next Home Screen load.');
+                        }}
+                    >
+                        <Text style={[styles.buttonText, { color: theme.text }]}>Reset Onboarding Tutorial</Text>
+                    </TouchableOpacity>
 
                     <TouchableOpacity
                         style={[styles.button, { backgroundColor: '#EF4444', marginTop: 20 }]}

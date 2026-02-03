@@ -1,10 +1,12 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, SectionList, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GradientBackground from '../components/GradientBackground';
 import { useWeather } from '../context/WeatherContext';
 import { useTheme } from '../context/ThemeContext';
 import { analyzeActivitySafety } from '../utils/weatherSafety';
+import { useSubscription } from '../context/SubscriptionContext';
+import { Alert } from 'react-native';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
     UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -109,55 +111,60 @@ const HourlyItem = React.memo(({ item, isExpanded, onToggle, theme }) => {
 const HourlyScreen = () => {
     const { weather, units, selectedActivity } = useWeather();
     const { theme } = useTheme();
+    const { isPro, purchasePro } = useSubscription();
     const [expandedIds, setExpandedIds] = useState(new Set());
 
     const hourlyData = weather?.hourly?.data || [];
     const minutely = weather?.minutely?.data;
     const currently = weather?.currently;
 
-    const sections = useMemo(() => {
+    const flatData = useMemo(() => {
         if (!hourlyData.length) return [];
 
-        const groups = {
-            'Morning (5AM - 12PM)': [],
-            'Afternoon (12PM - 6PM)': [],
-            'Evening (6PM - 10PM)': []
-        };
-
-        // Filter 5 AM - 10 PM
         const filtered = hourlyData.filter(item => {
             const hour = new Date(item.time * 1000).getHours();
             return hour >= 5 && hour <= 22;
         });
 
-        filtered.slice(0, 24).forEach(item => {
+        const limit = isPro ? 48 : 24;
+        const sliced = filtered.slice(0, limit);
+
+        const result = [];
+        let currentSection = null;
+
+        sliced.forEach((item, index) => {
             const date = new Date(item.time * 1000);
             const hour = date.getHours();
             const now = new Date();
             const isNow = date.getDate() === now.getDate() && hour === now.getHours();
 
-            // SYNC OVERRIDE: Use 'currently' data if it's the current hour
-            const dataToUse = (isNow && currently) ? currently : item;
+            // Determine Section
+            let sectionTitle = '';
+            if (hour >= 5 && hour < 12) sectionTitle = 'Morning (5AM - 12PM)';
+            else if (hour >= 12 && hour < 18) sectionTitle = 'Afternoon (12PM - 6PM)';
+            else if (hour >= 18 && hour <= 22) sectionTitle = 'Evening (6PM - 10PM)';
 
-            // Calculate safety using the CENTRALIZED utility
+            // Insert Header if changed
+            if (sectionTitle !== currentSection) {
+                result.push({ type: 'header', title: sectionTitle });
+                currentSection = sectionTitle;
+            }
+
+            // SYNC OVERRIDE
+            const dataToUse = (isNow && currently) ? currently : item;
             const analysis = analyzeActivitySafety(selectedActivity || 'walk', dataToUse, units);
 
-            // Enrich the item with analysis data for rendering
-            const enrichedItem = {
+            result.push({
+                type: 'item',
+                id: `${item.time}`,
                 ...item,
-                ...dataToUse, // Ensure temp etc match
-                analysis // { status, color, advice, metrics }
-            };
-
-            if (hour >= 5 && hour < 12) groups['Morning (5AM - 12PM)'].push(enrichedItem);
-            else if (hour >= 12 && hour < 18) groups['Afternoon (12PM - 6PM)'].push(enrichedItem);
-            else if (hour >= 18 && hour <= 22) groups['Evening (6PM - 10PM)'].push(enrichedItem);
+                ...dataToUse,
+                analysis
+            });
         });
 
-        return Object.entries(groups)
-            .filter(([_, data]) => data.length > 0)
-            .map(([title, data]) => ({ title, data }));
-    }, [hourlyData, currently, selectedActivity, units]);
+        return result;
+    }, [hourlyData, currently, selectedActivity, units, isPro]);
 
     const toggleExpand = useCallback((id) => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -169,14 +176,19 @@ const HourlyScreen = () => {
         });
     }, []);
 
-    const renderItem = useCallback(({ item }) => (
-        <HourlyItem
-            item={item}
-            isExpanded={expandedIds.has(item.time)}
-            onToggle={toggleExpand}
-            theme={theme}
-        />
-    ), [expandedIds, toggleExpand, theme]);
+    const renderItem = useCallback(({ item }) => {
+        if (item.type === 'header') {
+            return <Text style={[styles.sectionHeader, { color: theme.accent }]}>{item.title}</Text>;
+        }
+        return (
+            <HourlyItem
+                item={item}
+                isExpanded={expandedIds.has(item.time)}
+                onToggle={toggleExpand}
+                theme={theme}
+            />
+        );
+    }, [expandedIds, toggleExpand, theme]);
 
     return (
         <GradientBackground>
@@ -184,18 +196,38 @@ const HourlyScreen = () => {
                 <Text style={[styles.headerTitle, { color: theme.text }]}>Planner: {selectedActivity.charAt(0).toUpperCase() + selectedActivity.slice(1)}</Text>
                 <Text style={[styles.headerSub, { color: theme.textSecondary }]}>Tap hours for survival details</Text>
             </View>
-            <SectionList
-                sections={sections}
-                keyExtractor={(item) => item.time.toString()}
+            <FlatList
+                data={flatData}
+                keyExtractor={(item, index) => item.type === 'header' ? `header-${index}` : `${item.id}-${index}`}
                 renderItem={renderItem}
-                renderSectionHeader={({ section: { title } }) => (
-                    <Text style={[styles.sectionHeader, { color: theme.accent }]}>{title}</Text>
-                )}
                 contentContainerStyle={styles.list}
-                stickySectionHeadersEnabled={false}
-                initialNumToRender={10} // Optimization: Don't render everything at start
+                initialNumToRender={10}
                 maxToRenderPerBatch={5}
                 windowSize={5}
+                ListFooterComponent={
+                    !isPro ? (
+                        <TouchableOpacity
+                            onPress={purchasePro}
+                            style={{
+                                margin: 20,
+                                padding: 15,
+                                backgroundColor: theme.cardBg,
+                                borderRadius: 12,
+                                alignItems: 'center',
+                                borderWidth: 1,
+                                borderColor: theme.accent,
+                                borderStyle: 'dashed'
+                            }}
+                        >
+                            <Ionicons name="lock-closed" size={24} color={theme.accent} style={{ marginBottom: 8 }} />
+                            <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 16 }}>Unlock Full Forecast</Text>
+                            <Text style={{ color: theme.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+                                See 48+ hours ahead and plan your entire weekend with OutWeather+.
+                            </Text>
+                            <Text style={{ color: theme.accent, fontWeight: 'bold', marginTop: 10 }}>$1.99/month</Text>
+                        </TouchableOpacity>
+                    ) : null
+                }
             />
         </GradientBackground>
     );

@@ -4,6 +4,10 @@ import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
+
+const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
 
 export const WEATHER_TASK_NAME = 'BACKGROUND_WEATHER_CHECK';
 const API_KEY_STORAGE = 'pirate_weather_key';
@@ -28,7 +32,7 @@ export const checkWeatherAndNotify = async (isManual = false) => {
         const enabled = await AsyncStorage.getItem(NOTIFS_ENABLED_STORAGE);
         if (enabled === 'false' && !isManual) return BackgroundFetch.BackgroundFetchResult.NoData;
 
-        const apiKey = await AsyncStorage.getItem(API_KEY_STORAGE);
+        const apiKey = await SecureStore.getItemAsync(API_KEY_STORAGE);
         if (!apiKey) throw new Error("API Key missing. Please set it in Settings.");
 
         // 1. Precise Mobile Location
@@ -170,33 +174,79 @@ export const checkWeatherAndNotify = async (isManual = false) => {
         } else {
             const wasRaining = lastStatus?.precip > 0.3;
             const isRaining = precip > 0.3;
+            const windSpeed = data.currently.windSpeed || 0;
+            const uvIndex = data.currently.uvIndex || 0;
 
+            // Rain starting alert
             if (!wasRaining && isRaining) {
-                alertMessage = `Rain starting locally (${summary}). ${durationMsg}`;
-            } else if (tempF < 10 || feelsLikeF < 5) {
+                alertMessage = `🌧️ Rain starting now! ${durationMsg}`;
+            }
+            // Rain stopping alert
+            else if (wasRaining && !isRaining) {
+                alertMessage = `☀️ Rain has stopped! Great time to head outside. ${durationMsg}`;
+            }
+            // Extreme cold alert
+            else if (tempF < 10 || feelsLikeF < 5) {
                 if (!lastStatus || lastStatus.tempF >= 10) {
-                    alertMessage = `Dangerously Cold: ${Math.round(temperature)}°. Stay safe!`;
+                    alertMessage = `🥶 Dangerously Cold: ${Math.round(temperature)}°. Limit outdoor exposure!`;
                 }
-            } else if (wasRaining && !isRaining) {
-                alertMessage = `The rain has stopped! ${durationMsg}`;
+            }
+            // Extreme heat alert
+            else if (tempF > 95 || feelsLikeF > 100) {
+                if (!lastStatus || lastStatus.tempF <= 95) {
+                    alertMessage = `🔥 Extreme Heat: ${Math.round(temperature)}°. Stay hydrated and avoid midday sun!`;
+                }
+            }
+            // High UV alert (midday)
+            else if (uvIndex >= 8 && new Date().getHours() >= 10 && new Date().getHours() <= 15) {
+                if (!lastStatus?.highUVAlerted) {
+                    alertMessage = `☀️ UV Index is ${Math.round(uvIndex)} (Very High). Apply sunscreen if going outside!`;
+                }
+            }
+            // High wind alert
+            else if (windSpeed > 25) {
+                if (!lastStatus || (lastStatus.windSpeed || 0) <= 25) {
+                    alertMessage = `💨 High winds: ${Math.round(windSpeed)} mph. Secure loose items outdoors!`;
+                }
+            }
+            // Perfect conditions alert (positive notification)
+            else if (tempF >= 60 && tempF <= 75 && precip < 0.1 && windSpeed < 10 && !lastStatus?.perfectAlerted) {
+                const hour = new Date().getHours();
+                if (hour >= 7 && hour <= 10) {
+                    alertMessage = `🌤️ Perfect morning! ${Math.round(temperature)}° and calm. Great for outdoor activities!`;
+                }
             }
         }
 
+
         // Prioritize Morning Report if it exists, otherwise normal alert
-        const finalMessage = morningMessage || alertMessage;
+        let finalMessage = morningMessage || alertMessage;
+
+        // If manual test and no message, send a test notification
+        if (isManual && !finalMessage) {
+            finalMessage = `🔔 Test notification successful! Current weather: ${Math.round(temperature)}° and ${summary.toLowerCase()}.`;
+        }
 
         if (finalMessage) {
-            // Trigger Mobile Notification
-            await Notifications.scheduleNotificationAsync({
-                content: {
-                    title: morningMessage ? "Daily Activity Planner 📅" : "MicroWeather Alert 🌦️",
-                    body: finalMessage,
-                    sound: true,
-                    priority: Notifications.AndroidNotificationPriority.MAX,
-                    categoryIdentifier: 'weather',
-                },
-                trigger: null, // Immediate
-            });
+            // Trigger Mobile Notification (Skip on Expo Go to prevent crash)
+            if (!isExpoGo) {
+                try {
+                    await Notifications.scheduleNotificationAsync({
+                        content: {
+                            title: morningMessage ? "Daily Activity Planner 📅" : "OutWeather Alert 🌦️",
+                            body: finalMessage,
+                            sound: true,
+                            priority: Notifications.AndroidNotificationPriority.MAX,
+                            categoryIdentifier: 'weather',
+                        },
+                        trigger: null, // Immediate
+                    });
+                } catch (e) {
+                    console.warn("Could not schedule notification:", e.message);
+                }
+            } else {
+                console.log("Expo Go: Skipping notification schedule:", finalMessage);
+            }
 
             // Save to History
             try {

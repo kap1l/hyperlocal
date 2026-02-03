@@ -1,18 +1,30 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-    }),
-});
+const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
+
+// Only set notification handler if not in Expo Go
+if (!isExpoGo) {
+    Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+        }),
+    });
+}
 
 /**
  * Request permissions and configure channels
  */
 export const registerForNotifications = async () => {
+    // Skip entirely in Expo Go
+    if (isExpoGo) {
+        console.log('Skipping notification registration (Expo Go)');
+        return false;
+    }
+
     let token;
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
@@ -47,12 +59,18 @@ export const registerForNotifications = async () => {
  * Schedule a daily notification at 8:00 AM
  */
 export const scheduleDailyBriefing = async () => {
+    // Skip entirely in Expo Go
+    if (isExpoGo) {
+        console.log('Skipping daily briefing schedule (Expo Go)');
+        return;
+    }
+
     await Notifications.cancelAllScheduledNotificationsAsync();
 
     await Notifications.scheduleNotificationAsync({
         content: {
             title: "Good Morning! ☀️",
-            body: "Check today's microWeather forecast before you head out.",
+            body: "Check today's OutWeather forecast before you head out.",
             sound: true,
         },
         trigger: {
@@ -68,6 +86,12 @@ export const scheduleDailyBriefing = async () => {
  * @param {object} alert - The alert object from weather API
  */
 export const triggerSevereWeatherNotification = async (alert) => {
+    // Skip entirely in Expo Go
+    if (isExpoGo) {
+        console.log('Skipping severe weather notification (Expo Go):', alert.title);
+        return;
+    }
+
     await Notifications.scheduleNotificationAsync({
         content: {
             title: `⚠️ ${alert.title}`,

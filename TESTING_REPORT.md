@@ -73,7 +73,7 @@
 - ✅ Activity-specific advice
 
 ### New Features (v1.0)
-- ✅ Smart Daily Summary (AI planner)
+- ✅ Smart Daily Summary (AI planner with Actionable Why)
 - ✅ Air Quality & Pollen tracking
 - ✅ Golden Hour mode (camera activity only)
 - ✅ Offline banner with stale data indicator

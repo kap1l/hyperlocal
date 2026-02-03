@@ -113,7 +113,7 @@ const AlertsScreen = () => {
             </View>
             <FlatList
                 data={allData}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item, index) => `${item.id}-${index}`}
                 renderItem={renderItem}
                 contentContainerStyle={styles.list}
                 ListEmptyComponent={

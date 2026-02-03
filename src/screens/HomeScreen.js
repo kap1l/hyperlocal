@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, Text, StyleSheet, RefreshControl, View, TouchableOpacity, Animated } from 'react-native';
+import { ScrollView, Text, StyleSheet, RefreshControl, View, TouchableOpacity, Animated, Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import WeatherBackground from '../components/WeatherBackground';
@@ -16,16 +16,23 @@ import CitySearchModal from '../components/CitySearchModal';
 import BestTimeModal from '../components/BestTimeModal';
 import { useWeather } from '../context/WeatherContext';
 import { useTheme } from '../context/ThemeContext';
+import { useSubscription } from '../context/SubscriptionContext';
 import SmartSummaryCard from '../components/SmartSummaryCard';
 import AirQualityCard from '../components/AirQualityCard';
 import GoldenHourCard from '../components/GoldenHourCard';
 import OfflineBanner from '../components/OfflineBanner';
+import BannerAdComponent from '../components/BannerAdComponent';
+import OnboardingOverlay from '../components/OnboardingOverlay';
+import CollapsibleSection from '../components/CollapsibleSection';
+import MoonPhaseCard from '../components/MoonPhaseCard';
+import PollenCard from '../components/PollenCard';
 import { analyzeActivitySafety, getSeverityOverride } from '../utils/weatherSafety';
 
 const HomeScreen = ({ navigation }) => {
     const { weather, loading, error, refreshWeather, apiKey, locationName, setLocationConfig, isOffline, lastUpdated } = useWeather();
     const { theme } = useTheme();
     const { selectedActivity, units } = useWeather();
+    const { isPro, purchasePro } = useSubscription(); // Now uses the safe mock context
     const [prevLoading, setPrevLoading] = useState(false);
     const [searchVisible, setSearchVisible] = useState(false);
     const [bestTimeVisible, setBestTimeVisible] = useState(false);
@@ -73,6 +80,7 @@ const HomeScreen = ({ navigation }) => {
 
     return (
         <WeatherBackground condition={backgroundCondition}>
+            <OnboardingOverlay />
             <OfflineBanner isOffline={isOffline} lastUpdated={lastUpdated} />
             <ScrollView
                 contentContainerStyle={styles.scroll}
@@ -94,11 +102,32 @@ const HomeScreen = ({ navigation }) => {
                             <Text style={[styles.greeting, { color: theme.textSecondary }]}>
                                 {new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 18 ? 'Good Afternoon' : 'Good Evening'}
                             </Text>
-                            <TouchableOpacity style={styles.locationBtn} activeOpacity={0.7} onPress={() => setSearchVisible(true)}>
+                            <TouchableOpacity
+                                style={styles.locationBtn}
+                                activeOpacity={0.7}
+                                onPress={() => {
+                                    if (!isPro) {
+                                        Alert.alert(
+                                            "Travel Mode 🌍",
+                                            "Search for weather in other cities with OutWeather+! Free users get GPS-based local weather.",
+                                            [
+                                                { text: "Stay Local", style: "cancel" },
+                                                { text: "Unlock ($1.99/mo)", onPress: purchasePro }
+                                            ]
+                                        );
+                                        return;
+                                    }
+                                    setSearchVisible(true);
+                                }}
+                            >
                                 <Text style={[styles.locationText, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
                                     {locationName || 'Current Location'}
                                 </Text>
-                                <Ionicons name="search-circle" size={24} color={theme.accent} style={styles.searchIcon} />
+                                {isPro ? (
+                                    <Ionicons name="search-circle" size={24} color={theme.accent} style={styles.searchIcon} />
+                                ) : (
+                                    <Ionicons name="location" size={20} color={theme.accent} style={styles.searchIcon} />
+                                )}
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -106,7 +135,7 @@ const HomeScreen = ({ navigation }) => {
 
                 {error && <Text style={styles.error}>{error}</Text>}
                 {weather && (
-                    <>
+                    <Animated.View style={{ opacity: fadeAnim }}>
                         <SmartSummaryCard weather={weather} activity={selectedActivity} />
                         <WeatherCard
                             currently={weather.currently}
@@ -120,22 +149,56 @@ const HomeScreen = ({ navigation }) => {
                                 setBestTimeVisible(true);
                             }}
                         />
-                        <ActivityHub
-                            minutelyData={weather.minutely?.data}
-                            currently={weather.currently}
-                        />
-                        <MinuteTextBanner minutelyData={weather.minutely?.data} />
-                        <OutdoorComfortCard currently={weather.currently} />
-                        <AirQualityCard />
-                        <GoldenHourCard />
-                        <ActivityTimeline
-                            hourlyData={weather.hourly?.data}
-                            currently={weather.currently}
-                            currentAnalysis={activityAnalysis}
-                        />
-                        <DailyOutlookCard dailyData={weather.daily?.data} />
-                        <RainChart minutelyData={weather.minutely?.data} currently={weather.currently} />
-                    </>
+
+                        <CollapsibleSection title="Activity Overview" icon="fitness-outline" sectionId="activity-hub" accentColor="#22c55e">
+                            <ActivityHub
+                                minutelyData={weather.minutely?.data}
+                                currently={weather.currently}
+                            />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Minute-by-Minute" icon="timer-outline" sectionId="minute-banner" accentColor="#3b82f6">
+                            <MinuteTextBanner minutelyData={weather.minutely?.data} />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Outdoor Comfort" icon="thermometer-outline" sectionId="comfort" accentColor="#f59e0b">
+                            <OutdoorComfortCard currently={weather.currently} />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Air Quality" icon="leaf-outline" sectionId="aqi" accentColor="#22c55e">
+                            <AirQualityCard />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Golden Hour" icon="sunny-outline" sectionId="golden-hour" accentColor="#f59e0b">
+                            <GoldenHourCard />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Moon & Stargazing" icon="moon-outline" sectionId="moon-phase" accentColor="#8b5cf6">
+                            <MoonPhaseCard />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Pollen Index (Est.)" icon="flower-outline" sectionId="pollen" accentColor="#ec4899">
+                            <PollenCard />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Hourly Timeline" icon="time-outline" sectionId="timeline" accentColor="#8b5cf6">
+                            <ActivityTimeline
+                                hourlyData={weather.hourly?.data}
+                                currently={weather.currently}
+                                currentAnalysis={activityAnalysis}
+                            />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="7-Day Outlook" icon="calendar-outline" sectionId="daily" accentColor="#ec4899">
+                            <DailyOutlookCard dailyData={weather.daily?.data} />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Rain Forecast" icon="rainy-outline" sectionId="rain-chart" accentColor="#3b82f6">
+                            <RainChart minutelyData={weather.minutely?.data} currently={weather.currently} />
+                        </CollapsibleSection>
+
+                        <BannerAdComponent />
+                    </Animated.View>
                 )}
             </ScrollView>
 

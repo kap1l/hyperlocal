@@ -16,6 +16,26 @@ export async function updateWidgetData(weather, activity = 'walk', units = 'us')
     if (Platform.OS !== 'android') return; // Widgets only on Android for now
 
     try {
+        // CHECK SUBSCRIPTION STATUS
+        const isPro = await AsyncStorage.getItem('@is_pro_user');
+
+        if (isPro !== 'true') {
+            // LOCK THE WIDGET
+            const lockedData = {
+                score: 0,
+                activity: 'LOCKED',
+                temp: 0,
+                advice: 'Upgrade to OutWeather+ to unlock Widgets 🔒'
+            };
+            await AsyncStorage.setItem(WIDGET_DATA_KEY, JSON.stringify(lockedData));
+            requestWidgetUpdate({
+                widgetName: 'WeatherWidget',
+                renderWidget: () => null,
+                widgetNotFound: () => { }
+            });
+            return;
+        }
+
         if (!weather?.currently) return;
 
         const analysis = analyzeActivitySafety(activity, weather.currently, units);
