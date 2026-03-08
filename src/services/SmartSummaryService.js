@@ -22,26 +22,6 @@ const REASON_MAP = {
 export const generateDailySummary = (weather, activity) => {
     if (!weather || !weather.hourly) return "Loading your daily briefing...";
 
-    // Helper: Get hour in specific timezone (0-23)
-    const getHourInTimezone = (timestamp, timezone) => {
-        if (!timezone) return new Date(timestamp * 1000).getHours();
-        try {
-            const date = new Date(timestamp * 1000);
-            const hourStr = date.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                hour12: false,
-                timeZone: timezone
-            });
-            // Handle "24" edge case or "0"
-            let h = parseInt(hourStr, 10);
-            if (h === 24) h = 0;
-            return h;
-        } catch (e) {
-            return new Date(timestamp * 1000).getHours();
-        }
-    };
-
-    const timezone = weather.timezone;
     const hourly = weather.hourly.data.slice(0, 18); // Next 18 hours
     const bestWindows = [];
     const avoidWindows = [];
@@ -51,16 +31,14 @@ export const generateDailySummary = (weather, activity) => {
         const analysis = analyzeActivitySafety(activity, hour, 'us');
         if (!analysis) return; // Skip if analysis fails
 
-        const hourNum = getHourInTimezone(hour.time, timezone);
+        const hourNum = new Date(hour.time * 1000).getHours();
 
         if (analysis.score >= 80) bestWindows.push(hourNum);
         if (analysis.score < 50) avoidWindows.push(hourNum);
     });
 
     // Formatting Logic
-    // Use location's current time for greeting
-    const currentHour = getHourInTimezone(Date.now() / 1000, timezone);
-    const partOfDay = currentHour < 12 ? "morning" : "afternoon";
+    const partOfDay = new Date().getHours() < 12 ? "morning" : "afternoon";
     const greeting = `Good ${partOfDay}.`;
 
     // Helper: Determine the "Why"
@@ -113,12 +91,8 @@ export const generateDailySummary = (weather, activity) => {
     };
 
     // Analyze the hour immediately following the good window to explain the degradation
-    // Note: We need to find the specific hour data that corresponds to (lastGood + 1)
-    // We can't just modify generic hourNum logic easily for finding the *data object*.
-    // Instead, let's look at the index in logic.
-    // Simplifying: Find the first hour in 'hourly' that has hourNum == (lastGood + 1) % 24
     const nextHourVal = (lastGood + 1) % 24;
-    const nextHourData = hourly.find(h => getHourInTimezone(h.time, timezone) === nextHourVal);
+    const nextHourData = hourly.find(h => new Date(h.time * 1000).getHours() === nextHourVal);
     const reasonText = getReason(nextHourData);
 
     return `${greeting} Aim to ${activity} around ${formatTime(firstGood)}. Conditions degrade after ${formatTime(lastGood)}${reasonText}.`;

@@ -12,10 +12,7 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true,
-      "env": {
-        "ORG_GRADLE_JVMARGS": "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {

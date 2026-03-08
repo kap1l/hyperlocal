@@ -14,27 +14,9 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 // Optimization: Extracted & Memoized List Item
 // This prevents the entire list from re-rendering when one item expands
-const getHourInTimezone = (timestamp, timezone) => {
-    if (!timezone) return new Date(timestamp * 1000).getHours();
-    try {
-        const date = new Date(timestamp * 1000);
-        const hourStr = date.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            hour12: false,
-            timeZone: timezone
-        });
-        let h = parseInt(hourStr, 10);
-        if (h === 24) h = 0;
-        return h;
-    } catch (e) {
-        return new Date(timestamp * 1000).getHours();
-    }
-};
-
-// Optimization: Extracted & Memoized List Item
-// This prevents the entire list from re-rendering when one item expands
-const HourlyItem = React.memo(({ item, isExpanded, onToggle, theme, timezone }) => {
-    const hour = getHourInTimezone(item.time, timezone);
+const HourlyItem = React.memo(({ item, isExpanded, onToggle, theme }) => {
+    const date = new Date(item.time * 1000);
+    const hour = date.getHours();
     const ampm = hour >= 12 ? 'pm' : 'am';
     const hourDisp = hour % 12 || 12;
 
@@ -123,8 +105,7 @@ const HourlyItem = React.memo(({ item, isExpanded, onToggle, theme, timezone }) 
     // Only re-render if expansion state changes or if data deep changes (unlikely for static weather)
     return prevProps.isExpanded === nextProps.isExpanded &&
         prevProps.theme.name === nextProps.theme.name &&
-        prevProps.item.time === nextProps.item.time &&
-        prevProps.timezone === nextProps.timezone;
+        prevProps.item.time === nextProps.item.time;
 });
 
 const HourlyScreen = () => {
@@ -136,13 +117,12 @@ const HourlyScreen = () => {
     const hourlyData = weather?.hourly?.data || [];
     const minutely = weather?.minutely?.data;
     const currently = weather?.currently;
-    const timezone = weather?.timezone;
 
     const flatData = useMemo(() => {
         if (!hourlyData.length) return [];
 
         const filtered = hourlyData.filter(item => {
-            const hour = getHourInTimezone(item.time, timezone);
+            const hour = new Date(item.time * 1000).getHours();
             return hour >= 5 && hour <= 22;
         });
 
@@ -153,16 +133,16 @@ const HourlyScreen = () => {
         let currentSection = null;
 
         sliced.forEach((item, index) => {
-            const hour = getHourInTimezone(item.time, timezone);
-            const nowTS = Date.now() / 1000;
-            const isNow = item.time <= nowTS && nowTS < (item.time + 3600);
+            const date = new Date(item.time * 1000);
+            const hour = date.getHours();
+            const now = new Date();
+            const isNow = date.getDate() === now.getDate() && hour === now.getHours();
 
             // Determine Section
             let sectionTitle = '';
             if (hour >= 5 && hour < 12) sectionTitle = 'Morning (5AM - 12PM)';
             else if (hour >= 12 && hour < 18) sectionTitle = 'Afternoon (12PM - 6PM)';
             else if (hour >= 18 && hour <= 22) sectionTitle = 'Evening (6PM - 10PM)';
-
 
             // Insert Header if changed
             if (sectionTitle !== currentSection) {
@@ -206,10 +186,9 @@ const HourlyScreen = () => {
                 isExpanded={expandedIds.has(item.time)}
                 onToggle={toggleExpand}
                 theme={theme}
-                timezone={timezone}
             />
         );
-    }, [expandedIds, toggleExpand, theme, timezone]);
+    }, [expandedIds, toggleExpand, theme]);
 
     return (
         <GradientBackground>

@@ -5,29 +5,34 @@ import { Ionicons } from '@expo/vector-icons';
 import WeatherBackground from '../components/WeatherBackground';
 import WeatherCard from '../components/WeatherCard';
 import RainChart from '../components/RainChart';
+import FeaturedActivityBadge from '../components/FeaturedActivityBadge';
 import ExtendedActivityCard from '../components/ExtendedActivityCard';
 import ActivityHub from '../components/ActivityHub';
+import OutdoorComfortCard from '../components/OutdoorComfortCard';
 import ActivityTimeline from '../components/ActivityTimeline';
 import DailyOutlookCard from '../components/DailyOutlookCard';
+import MinuteTextBanner from '../components/MinuteTextBanner';
 import CitySearchModal from '../components/CitySearchModal';
 import BestTimeModal from '../components/BestTimeModal';
 import { useWeather } from '../context/WeatherContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import SmartSummaryCard from '../components/SmartSummaryCard';
+import AirQualityCard from '../components/AirQualityCard';
 import GoldenHourCard from '../components/GoldenHourCard';
 import OfflineBanner from '../components/OfflineBanner';
 import BannerAdComponent from '../components/BannerAdComponent';
 import OnboardingOverlay from '../components/OnboardingOverlay';
 import CollapsibleSection from '../components/CollapsibleSection';
-import ConditionsCarousel from '../components/ConditionsCarousel';
+import MoonPhaseCard from '../components/MoonPhaseCard';
+import PollenCard from '../components/PollenCard';
 import { analyzeActivitySafety, getSeverityOverride } from '../utils/weatherSafety';
 
 const HomeScreen = ({ navigation }) => {
     const { weather, loading, error, refreshWeather, apiKey, locationName, setLocationConfig, isOffline, lastUpdated } = useWeather();
     const { theme } = useTheme();
     const { selectedActivity, units } = useWeather();
-    const { isPro, purchasePro } = useSubscription();
+    const { isPro, purchasePro } = useSubscription(); // Now uses the safe mock context
     const [prevLoading, setPrevLoading] = useState(false);
     const [searchVisible, setSearchVisible] = useState(false);
     const [bestTimeVisible, setBestTimeVisible] = useState(false);
@@ -41,14 +46,6 @@ const HomeScreen = ({ navigation }) => {
     // Calculate severity for background visualization (e.g. "heavy snow")
     const severityOverride = weather?.currently ? getSeverityOverride(weather.currently, units === 'si') : null;
     const backgroundCondition = severityOverride ? severityOverride.toLowerCase() : weather?.currently?.icon;
-
-    // Check for precipitation to conditionally show Rain Chart
-    const hasPrecipitation = React.useMemo(() => {
-        if (!weather) return false;
-        const currentProb = weather.currently?.precipProbability || 0;
-        const minutelyProb = weather.minutely?.data?.some(m => m.precipProbability > 0) || false;
-        return currentProb > 0.1 || minutelyProb;
-    }, [weather]);
 
     // Snazzy entry animation for location
     useEffect(() => {
@@ -115,7 +112,7 @@ const HomeScreen = ({ navigation }) => {
                                             "Search for weather in other cities with OutWeather+! Free users get GPS-based local weather.",
                                             [
                                                 { text: "Stay Local", style: "cancel" },
-                                                { text: "Unlock ($0.99/mo)", onPress: purchasePro }
+                                                { text: "Unlock ($1.99/mo)", onPress: purchasePro }
                                             ]
                                         );
                                         return;
@@ -139,16 +136,11 @@ const HomeScreen = ({ navigation }) => {
                 {error && <Text style={styles.error}>{error}</Text>}
                 {weather && (
                     <Animated.View style={{ opacity: fadeAnim }}>
-                        {/* 1. Smart Briefing (AI) */}
                         <SmartSummaryCard weather={weather} activity={selectedActivity} />
-
-                        {/* 2. Core Weather Stats */}
                         <WeatherCard
                             currently={weather.currently}
                             dailyData={weather.daily?.data}
                         />
-
-                        {/* 3. Activity Score & Recommendation */}
                         <ExtendedActivityCard
                             currently={weather.currently}
                             analysis={activityAnalysis}
@@ -158,7 +150,6 @@ const HomeScreen = ({ navigation }) => {
                             }}
                         />
 
-                        {/* 4. Activity Specific Details (Collapsible) */}
                         <CollapsibleSection title="Activity Overview" icon="fitness-outline" sectionId="activity-hub" accentColor="#22c55e">
                             <ActivityHub
                                 minutelyData={weather.minutely?.data}
@@ -166,19 +157,30 @@ const HomeScreen = ({ navigation }) => {
                             />
                         </CollapsibleSection>
 
-                        {/* 5. Environmental Conditions Carousel (Horizontal Scroll) */}
-                        {/* New wrapper for "exciting" feel */}
-                        <View style={styles.carouselSection}>
-                            <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>ENVIRONMENTAL CONDITIONS</Text>
-                            <ConditionsCarousel weather={weather} currently={weather.currently} />
-                        </View>
-
-                        {/* 6. 7-Day Outlook */}
-                        <CollapsibleSection title="7-Day Outlook" icon="calendar-outline" sectionId="daily" accentColor="#ec4899">
-                            <DailyOutlookCard dailyData={weather.daily?.data} />
+                        <CollapsibleSection title="Minute-by-Minute" icon="timer-outline" sectionId="minute-banner" accentColor="#3b82f6">
+                            <MinuteTextBanner minutelyData={weather.minutely?.data} />
                         </CollapsibleSection>
 
-                        {/* 7. Hourly Timeline */}
+                        <CollapsibleSection title="Outdoor Comfort" icon="thermometer-outline" sectionId="comfort" accentColor="#f59e0b">
+                            <OutdoorComfortCard currently={weather.currently} />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Air Quality" icon="leaf-outline" sectionId="aqi" accentColor="#22c55e">
+                            <AirQualityCard />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Golden Hour" icon="sunny-outline" sectionId="golden-hour" accentColor="#f59e0b">
+                            <GoldenHourCard />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Moon & Stargazing" icon="moon-outline" sectionId="moon-phase" accentColor="#8b5cf6">
+                            <MoonPhaseCard />
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Pollen Index (Est.)" icon="flower-outline" sectionId="pollen" accentColor="#ec4899">
+                            <PollenCard />
+                        </CollapsibleSection>
+
                         <CollapsibleSection title="Hourly Timeline" icon="time-outline" sectionId="timeline" accentColor="#8b5cf6">
                             <ActivityTimeline
                                 hourlyData={weather.hourly?.data}
@@ -187,19 +189,13 @@ const HomeScreen = ({ navigation }) => {
                             />
                         </CollapsibleSection>
 
-                        {/* 8. Conditional Rain Forecast */}
-                        {hasPrecipitation && (
-                            <CollapsibleSection title="Rain Forecast" icon="rainy-outline" sectionId="rain-chart" accentColor="#3b82f6">
-                                <RainChart minutelyData={weather.minutely?.data} currently={weather.currently} />
-                            </CollapsibleSection>
-                        )}
+                        <CollapsibleSection title="7-Day Outlook" icon="calendar-outline" sectionId="daily" accentColor="#ec4899">
+                            <DailyOutlookCard dailyData={weather.daily?.data} />
+                        </CollapsibleSection>
 
-                        {/* 9. Conditional Golden Hour */}
-                        {selectedActivity === 'camera' && (
-                            <CollapsibleSection title="Golden Hour" icon="sunny-outline" sectionId="golden-hour" accentColor="#f59e0b">
-                                <GoldenHourCard />
-                            </CollapsibleSection>
-                        )}
+                        <CollapsibleSection title="Rain Forecast" icon="rainy-outline" sectionId="rain-chart" accentColor="#3b82f6">
+                            <RainChart minutelyData={weather.minutely?.data} currently={weather.currently} />
+                        </CollapsibleSection>
 
                         <BannerAdComponent />
                     </Animated.View>
@@ -291,17 +287,6 @@ const styles = StyleSheet.create({
     text: {
         color: '#fff',
         fontSize: 18,
-    },
-    carouselSection: {
-        marginBottom: 8,
-    },
-    sectionLabel: {
-        fontSize: 11,
-        fontWeight: '800',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-        marginBottom: 8,
-        marginLeft: 20, // Align with header padding
     },
     error: {
         color: 'red',

@@ -8,7 +8,7 @@ const SubscriptionContext = createContext();
 // RevenueCat API Keys (replace with your actual keys from RevenueCat dashboard)
 const API_KEYS = {
     apple: 'appl_YOUR_IOS_KEY_HERE',  // Replace with your iOS key
-    google: 'goog_TqijrCPnsnlxuFaDAgrzjmWNqNh'  // Your Android key
+    google: 'test_oSAJeVHcbmnrWgtsXqiomeaDNer'  // Your Android key
 };
 
 const ENTITLEMENT_ID = 'pro';
