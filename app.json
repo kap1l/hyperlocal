@@ -2,7 +2,7 @@
   "expo": {
     "name": "OutWeather",
     "slug": "outweather",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -16,12 +16,11 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.microweather",
+      "bundleIdentifier": "com.antigravity.outweather",
       "infoPlist": {
         "UIBackgroundModes": [
           "location",
-          "fetch",
-          "remote-notification"
+          "fetch"
         ]
       }
     },
@@ -30,17 +29,14 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1E1E1E"
       },
-      "package": "com.antigravity.microrain",
+      "package": "com.antigravity.outweather",
       "config": {
         "googleMobileAdsAppId": "ca-app-pub-3940256099942544~3347511713"
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "RECEIVE_BOOT_COMPLETED",
-        "NOTIFICATIONS",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ]
@@ -51,7 +47,6 @@
     "plugins": [
       "expo-asset",
       "expo-font",
-      "expo-notifications",
       "expo-location",
       "expo-secure-store",
       [
@@ -64,18 +59,29 @@
               "minWidth": "180dp",
               "minHeight": "110dp",
               "description": "Shows your activity score at a glance",
-              "previewImage": "./assets/widget-preview.png",
+              "previewImage": "./assets/widget-preview.jpg",
               "resizeMode": "horizontal|vertical",
               "widgetFeatures": "reconfigurable",
               "updatePeriodMillis": 1800000
             }
           ]
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": true
+          },
+          "ios": {
+            "newArchEnabled": true
+          }
+        }
       ]
     ],
     "extra": {
       "eas": {
-        "projectId": "847feb51-37ae-4836-9e4d-0275b3cb1dbe"
+        "projectId": "8d82f35b-b56b-44a6-8eca-a7099100768d"
       }
     }
   }

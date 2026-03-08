@@ -37,12 +37,13 @@ const GoldenHourCard = () => {
         const eveningBlueStart = new Date(sunsetTime);
         const eveningBlueEnd = new Date(sunsetTime.getTime() + 30 * 60 * 1000);
 
-        // Format time helper
+        // Format time helper using location timezone
         const formatTime = (date) => {
             return date.toLocaleTimeString('en-US', {
                 hour: 'numeric',
                 minute: '2-digit',
-                hour12: true
+                hour12: true,
+                timeZone: weather.timezone // Use location timezone
             });
         };
 
@@ -85,7 +86,7 @@ const GoldenHourCard = () => {
             countdown,
             isGoldenNow: countdown.includes('NOW'),
         };
-    }, [weather?.daily?.data]);
+    }, [weather?.daily?.data, weather?.timezone]);
 
     if (!sunData) return null;
 

@@ -8,7 +8,7 @@ const SubscriptionContext = createContext();
 // RevenueCat API Keys (replace with your actual keys from RevenueCat dashboard)
 const API_KEYS = {
     apple: 'appl_YOUR_IOS_KEY_HERE',  // Replace with your iOS key
-    google: 'test_oSAJeVHcbmnrWgtsXqiomeaDNer'  // Your Android key
+    google: 'goog_TqijrCPnsnlxuFaDAgrzjmWNqNh'  // Your Android key
 };
 
 const ENTITLEMENT_ID = 'pro';
@@ -23,6 +23,16 @@ export const SubscriptionProvider = ({ children }) => {
     }, []);
 
     const initializeRevenueCat = async () => {
+        // EMERGENCY BYPASS for Test Keys in Release Builds
+        // Prevents "Wrong API Key" crash and grants free access
+        if (!__DEV__ && (API_KEYS.google.startsWith('test_') || API_KEYS.apple.startsWith('test_'))) {
+            console.warn('⚠️ using Test Key in Release - Bypassing RevenueCat & Granting Pro');
+            setIsPro(true);
+            AsyncStorage.setItem('@is_pro_user', 'true').catch(e => console.error('Failed to save bypass status', e));
+            setIsLoading(false);
+            return;
+        }
+
         try {
             // Set log level for debugging
             Purchases.setLogLevel(LOG_LEVEL.DEBUG);

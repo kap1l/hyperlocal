@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, TextInput, Switch, StyleSheet, TouchableOpacity, Alert, Platform, ActivityIndicator, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
+// import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import GradientBackground from '../components/GradientBackground';
@@ -60,16 +60,18 @@ const SettingsScreen = () => {
         setIsTesting(true);
         try {
             // Request notification permissions first
+            /*
             const { status } = await Notifications.requestPermissionsAsync();
             if (status !== 'granted') {
                 Alert.alert("Permission Denied", "Please enable notifications in your phone settings to receive weather alerts.");
                 setIsTesting(false);
                 return;
             }
+            */
 
             await checkWeatherAndNotify(true);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert("Success!", "Test notification sent! Check your notification shade.");
+            Alert.alert("Test Complete", "Background check ran. (Notifications disabled in this build)");
         } catch (error) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             Alert.alert("Notification Failed", error.message);
@@ -178,7 +180,7 @@ const SettingsScreen = () => {
                                     "Upgrade to OutWeather+ to unlock advanced activities like Cycling, Golf, and Photography.",
                                     [
                                         { text: "Cancel", style: "cancel" },
-                                        { text: "Upgrade ($1.99/mo)", onPress: purchasePro }
+                                        { text: "Upgrade ($0.99/mo)", onPress: purchasePro }
                                     ]
                                 );
                                 return;
@@ -317,7 +319,7 @@ const SettingsScreen = () => {
                                         "Searching for other cities is a Premium feature. Free version is GPS only.",
                                         [
                                             { text: "Cancel", style: "cancel" },
-                                            { text: "Unlock ($1.99/mo)", onPress: purchasePro }
+                                            { text: "Unlock ($0.99/mo)", onPress: purchasePro }
                                         ]
                                     );
                                     return;

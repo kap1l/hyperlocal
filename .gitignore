@@ -20,3 +20,7 @@ yarn-error.log*
 
 # Metro
 .metro-health-check
+
+# Native (Managed Workflow / CNG)
+android/
+ios/

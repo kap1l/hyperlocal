@@ -1,6 +1,6 @@
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
-import * as Notifications from 'expo-notifications';
+// import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -230,6 +230,8 @@ export const checkWeatherAndNotify = async (isManual = false) => {
         if (finalMessage) {
             // Trigger Mobile Notification (Skip on Expo Go to prevent crash)
             if (!isExpoGo) {
+                console.log("Notifications disabled in production build:", finalMessage);
+                /*
                 try {
                     await Notifications.scheduleNotificationAsync({
                         content: {
@@ -244,6 +246,7 @@ export const checkWeatherAndNotify = async (isManual = false) => {
                 } catch (e) {
                     console.warn("Could not schedule notification:", e.message);
                 }
+                */
             } else {
                 console.log("Expo Go: Skipping notification schedule:", finalMessage);
             }

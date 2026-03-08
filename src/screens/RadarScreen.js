@@ -15,6 +15,8 @@ const RadarScreen = () => {
     const [loading, setLoading] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
     const [cachedSnapshot, setCachedSnapshot] = useState(null);
+    const [mapType, setMapType] = useState('dark'); // dark, light, satellite
+    const [overlayType, setOverlayType] = useState('radar'); // radar, satellite
     const [focusMode, setFocusMode] = useState(false);
 
     // Playback State
@@ -52,7 +54,13 @@ const RadarScreen = () => {
     };
 
     const htmlContent = useMemo(() => {
-        const zoom = focusMode ? 13 : 8;
+        const zoom = focusMode ? 9 : 6;
+
+        // Base Map URL Logic
+        let baseMapUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        if (mapType === 'light') baseMapUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+        if (mapType === 'satellite') baseMapUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
         return `
         <!DOCTYPE html>
         <html>
@@ -88,7 +96,7 @@ const RadarScreen = () => {
                         }
                     } catch (e) {}
                 });
-                // Also support document listen for Android sometimes
+                
                 document.addEventListener("message", function(event) {
                     try {
                         var data = JSON.parse(event.data);
@@ -110,17 +118,29 @@ const RadarScreen = () => {
                         zoomSnap: 0.5
                     }).setView([${lat}, ${lon}], ${zoom});
 
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/${theme.name === 'day' ? 'light_all' : 'dark_all'}/{z}/{x}/{y}{r}.png').addTo(map);
+                    L.tileLayer('${baseMapUrl}').addTo(map);
                     
+                    // Marker for location
                     L.circleMarker([${lat}, ${lon}], {
-                        radius: 8, fillColor: "#3b82f6", color: "#fff", weight: 2, opacity: 1, fillOpacity: 1
+                        radius: 6, 
+                        fillColor: "#3b82f6", 
+                        color: "#fff", 
+                        weight: 2, 
+                        opacity: 1, 
+                        fillOpacity: 1
                     }).addTo(map);
 
                     fetch('https://api.rainviewer.com/public/weather-maps.json')
                         .then(res => res.json())
                         .then(data => {
                             var apiData = data;
-                            var frames = apiData.radar.past;
+                            // Select frames based on overlay type
+                            var frames = [];
+                            if ('${overlayType}' === 'satellite' && apiData.satellite && apiData.satellite.infrared) {
+                                frames = apiData.satellite.infrared;
+                            } else {
+                                frames = apiData.radar.past;
+                            }
                             
                             // Let RN know total frames
                             window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -164,7 +184,7 @@ const RadarScreen = () => {
                     
                     // Update opacity
                     radarLayers.forEach(l => l.setOpacity(0)); 
-                    radarLayers[currentFrame].setOpacity(0.75); 
+                    radarLayers[currentFrame].setOpacity(${overlayType === 'satellite' ? 0.6 : 0.75}); 
                     
                     // Inform RN of progress
                     window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -183,7 +203,7 @@ const RadarScreen = () => {
         </body>
         </html>
         `;
-    }, [lat, lon, theme.name, refreshKey, focusMode]);
+    }, [lat, lon, refreshKey, focusMode, mapType, overlayType]);
 
     const onMessage = async (event) => {
         try {
@@ -212,6 +232,34 @@ const RadarScreen = () => {
                         </Text>
                     </View>
                     <View style={styles.headerActions}>
+                        {/* Overlay Toggle: Radar vs Satellite */}
+                        <TouchableOpacity
+                            style={styles.actionBtn}
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setOverlayType(prev => prev === 'radar' ? 'satellite' : 'radar');
+                                setLoading(true);
+                            }}
+                        >
+                            <Ionicons name={overlayType === 'radar' ? "thunderstorm-outline" : "cloud-outline"} size={22} color={theme.text} />
+                        </TouchableOpacity>
+
+                        {/* Map Style Toggle: Dark -> Light -> Satellite */}
+                        <TouchableOpacity
+                            style={styles.actionBtn}
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setMapType(prev => {
+                                    if (prev === 'dark') return 'light';
+                                    if (prev === 'light') return 'satellite';
+                                    return 'dark'; // satellite -> dark
+                                });
+                                setLoading(true);
+                            }}
+                        >
+                            <Ionicons name={mapType === 'satellite' ? "earth" : "map-outline"} size={22} color={theme.text} />
+                        </TouchableOpacity>
+
                         <TouchableOpacity
                             style={[styles.actionBtn, focusMode && { backgroundColor: theme.accent + '20' }]}
                             onPress={toggleFocus}

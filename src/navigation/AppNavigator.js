@@ -112,11 +112,6 @@ const AppNavigator = () => {
                 listeners={{ tabPress: triggerHaptic }}
             />
             <Tab.Screen
-                name="Radar"
-                component={RadarScreen}
-                listeners={{ tabPress: triggerHaptic }}
-            />
-            <Tab.Screen
                 name="Hourly"
                 component={HourlyScreen}
                 listeners={{ tabPress: triggerHaptic }}
@@ -124,6 +119,11 @@ const AppNavigator = () => {
             <Tab.Screen
                 name="Alerts"
                 component={AlertsScreen}
+                listeners={{ tabPress: triggerHaptic }}
+            />
+            <Tab.Screen
+                name="Radar"
+                component={RadarScreen}
                 listeners={{ tabPress: triggerHaptic }}
             />
             <Tab.Screen
