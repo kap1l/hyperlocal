@@ -1,5 +1,8 @@
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Sentry from '@sentry/react-native';
 
+const LOCATION_CACHE_KEY = '@location_cache';
 export const getCurrentLocation = async () => {
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -25,6 +28,7 @@ export const geocodeAddress = async (address) => {
         }
         throw new Error('Location not found');
     } catch (e) {
+        Sentry.captureException(e);
         console.error("Geocoding failed", e);
         throw e;
     }
@@ -38,7 +42,9 @@ export const reverseGeocode = async (lat, lon) => {
             return `${item.city || ''}, ${item.region || ''} ${item.postalCode || ''}`.trim();
         }
     } catch (e) {
-        console.error("Reverse geocoding failed", e);
+        Sentry.captureException(e);
+        console.log('Error reverse geocoding', e);
+        return null;
     }
     return "Current Location";
 };

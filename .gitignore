@@ -1,1 +1,41 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Build artifacts & logs
+*.log
+build_log.txt
+run.log
+android/build_log.txt
+android/.gradle/
+android/app/build/
+android/build/
+
+# Android signing keys
+# Note: debug.keystore is already tracked; regenerate if repo is public
+*.keystore
+*.jks
+
+# iOS
+ios/Pods/
+ios/build/
+*.xcworkspace
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

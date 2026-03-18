@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../context/ThemeContext';
+import { useSubscription } from '../context/SubscriptionContext';
 
 const { width, height } = Dimensions.get('window');
 const ONBOARDING_KEY = '@onboarding_complete';
@@ -49,6 +50,7 @@ const SLIDES = [
 
 const OnboardingOverlay = ({ onComplete }) => {
     const { theme } = useTheme();
+    const { purchasePro } = useSubscription();
     const [visible, setVisible] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
     const [fadeAnim] = useState(new Animated.Value(0));
@@ -131,6 +133,31 @@ const OnboardingOverlay = ({ onComplete }) => {
                     <Text style={[styles.title, { color: '#fff' }]}>{slide.title}</Text>
                     <Text style={[styles.subtitle, { color: slide.color }]}>{slide.subtitle}</Text>
                     <Text style={[styles.description, { color: 'rgba(255,255,255,0.7)' }]}>{slide.description}</Text>
+
+                    {isLast && (
+                        <View style={styles.proCard}>
+                            <Text style={styles.proCardTitle}>Unlock OutWeather+</Text>
+                            <View style={styles.proFeatureRow}>
+                                <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
+                                <Text style={styles.proFeatureText}>All 13 activities</Text>
+                            </View>
+                            <View style={styles.proFeatureRow}>
+                                <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
+                                <Text style={styles.proFeatureText}>City search</Text>
+                            </View>
+                            <View style={styles.proFeatureRow}>
+                                <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
+                                <Text style={styles.proFeatureText}>No ads</Text>
+                            </View>
+                            <View style={styles.proFeatureRow}>
+                                <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
+                                <Text style={styles.proFeatureText}>30 days free</Text>
+                            </View>
+                            <TouchableOpacity style={styles.subscribeBtn} onPress={purchasePro} activeOpacity={0.8}>
+                                <Text style={styles.subscribeText}>Start Free Trial</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
 
                     {/* Progress Dots */}
                     <View style={styles.dotsContainer}>
@@ -250,6 +277,45 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 17,
         fontWeight: '700',
+    },
+    proCard: {
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        padding: 20,
+        borderRadius: 16,
+        width: '100%',
+        marginBottom: 30,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        borderWidth: 1,
+    },
+    proCardTitle: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '800',
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    proFeatureRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    proFeatureText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '500',
+    },
+    subscribeBtn: {
+        backgroundColor: '#ec4899',
+        paddingVertical: 14,
+        borderRadius: 24,
+        alignItems: 'center',
+        marginTop: 16,
+    },
+    subscribeText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
 });
 

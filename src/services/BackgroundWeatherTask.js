@@ -6,6 +6,8 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
+import { fetchWeather } from './WeatherService';
+import { scheduleDailyBriefing } from './NotificationService';
 
 const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
 
@@ -21,39 +23,38 @@ try {
         return await checkWeatherAndNotify();
     });
 } catch (e) {
+        Sentry.captureException(e);
     console.warn("TaskManager initialization error:", e.message);
 }
 
 import { analyzeActivitySafety } from '../utils/weatherSafety';
 import { getSelectedActivity } from './StorageService';
+import * as Sentry from '@sentry/react-native';
 
 export const checkWeatherAndNotify = async (isManual = false) => {
     try {
         const enabled = await AsyncStorage.getItem(NOTIFS_ENABLED_STORAGE);
         if (enabled === 'false' && !isManual) return BackgroundFetch.BackgroundFetchResult.NoData;
 
-        const apiKey = await SecureStore.getItemAsync(API_KEY_STORAGE);
-        if (!apiKey) throw new Error("API Key missing. Please set it in Settings.");
+        // API key is OPTIONAL — null triggers Open-Meteo (default, no key required)
+        const apiKey = await SecureStore.getItemAsync(API_KEY_STORAGE).catch(() => null);
 
         // 1. Precise Mobile Location
         const { status: foreStatus } = await Location.getForegroundPermissionsAsync();
-        if (foreStatus !== 'granted') throw new Error("Location permission denied.");
+        if (foreStatus !== 'granted') throw new Error('Location permission denied.');
 
         const location = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.High,
         });
         const { latitude, longitude } = location.coords;
 
-        // 2. Mobile Fetch (Check units from storage)
+        // 2. Fetch weather via shared service (Open-Meteo default, PirateWeather if key set)
         const unitStorage = await AsyncStorage.getItem('weather_units');
         const units = unitStorage || 'us';
 
-        // Fetch Hourly AND Minutely data
-        const url = `https://api.pirateweather.net/forecast/${apiKey}/${latitude},${longitude}?units=${units}&exclude=daily`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await fetchWeather(apiKey, latitude, longitude, units);
 
-        if (!data.currently) throw new Error("Could not fetch weather data.");
+        if (!data.currently) throw new Error('Could not fetch weather data.');
 
         const summary = data.currently.summary || "Cloudy";
         const precip = data.currently.precipProbability || 0;
@@ -159,6 +160,9 @@ export const checkWeatherAndNotify = async (isManual = false) => {
                 if (morningMessage) {
                     await AsyncStorage.setItem('@last_morning_report_date', todayStr);
                 }
+                
+                // Add the daily briefing scheduling here
+                await scheduleDailyBriefing(data, activityId);
             }
         }
 
@@ -242,10 +246,11 @@ export const checkWeatherAndNotify = async (isManual = false) => {
                         trigger: null, // Immediate
                     });
                 } catch (e) {
+        Sentry.captureException(e);
                     console.warn("Could not schedule notification:", e.message);
                 }
             } else {
-                console.log("Expo Go: Skipping notification schedule:", finalMessage);
+                if (__DEV__) console.log("Expo Go: Skipping notification schedule:", finalMessage);
             }
 
             // Save to History
@@ -261,6 +266,7 @@ export const checkWeatherAndNotify = async (isManual = false) => {
                 if (history.length > 20) history = history.slice(0, 20);
                 await AsyncStorage.setItem(HISTORY_STORAGE, JSON.stringify(history));
             } catch (e) {
+        Sentry.captureException(e);
                 console.error("Failed to save history:", e);
             }
 
@@ -272,7 +278,8 @@ export const checkWeatherAndNotify = async (isManual = false) => {
 
         return BackgroundFetch.BackgroundFetchResult.NoData;
     } catch (error) {
-        console.error("Task Error:", error.message);
+        Sentry.captureException(error);
+        if (__DEV__) console.error("Task Error:", error.message);
         if (isManual) throw error;
         return BackgroundFetch.BackgroundFetchResult.Failed;
     }
@@ -290,6 +297,7 @@ export const registerBackgroundWeatherTask = async () => {
             });
         }
     } catch (err) {
+        Sentry.captureException(err);
         console.error("Task registration failed:", err);
     }
 };

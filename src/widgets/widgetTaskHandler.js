@@ -2,6 +2,7 @@ import React from 'react';
 import { registerWidgetTaskHandler } from 'react-native-android-widget';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WeatherWidget } from './WeatherWidget';
+import * as Sentry from '@sentry/react-native';
 
 const WIDGET_DATA_KEY = '@widget_weather_data';
 
@@ -16,6 +17,7 @@ async function getWidgetData() {
             return JSON.parse(data);
         }
     } catch (e) {
+        Sentry.captureException(e);
         console.error('Failed to load widget data:', e);
     }
 

@@ -1,31 +1,75 @@
-import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
-import { useSubscription } from '../context/SubscriptionContext';
-import { useTheme } from '../context/ThemeContext';
+/**
+ * BannerAdComponent.js
+ *
+ * Uses react-native-google-mobile-ads for real banner ad delivery.
+ * Pro subscribers see no ads (privacy-first: the ad SDK is never initialised
+ * for them).
+ *
+ * Setup checklist:
+ *   1. Run: npm install react-native-google-mobile-ads
+ *   2. Set ADMOB_APP_ID in EAS Secrets:
+ *      eas secret:create --scope project --name ADMOB_APP_ID_IOS --value ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX
+ *      eas secret:create --scope project --name ADMOB_APP_ID_ANDROID --value ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX
+ *   3. app.config.js already reads from process.env.ADMOB_APP_ID — update it
+ *      to use the correct platform-specific ID.
+ *   4. Run `expo prebuild` or `eas build` to apply native config.
+ *
+ * Ad unit IDs:
+ *   During development / Expo Go → TestIds.BANNER (safe mock ad from Google)
+ *   In production builds → your real unit ID from AdMob dashboard
+ */
 
-// MOCK AD COMPONENT
-// In production, this would import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+import React, { useState } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
+import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+import { useSubscription } from '../context/SubscriptionContext';
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Ad Unit IDs
+//  Replace the production IDs with your real AdMob banner unit IDs.
+//  These are safe to commit — they are NOT secret (unlike the App ID in app.json).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PRODUCTION_UNIT_IDS = {
+    ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX',     // TODO: replace with real iOS banner unit ID
+    android: 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX', // TODO: replace with real Android banner unit ID
+};
+
+const getAdUnitId = () => {
+    if (__DEV__) {
+        // Always use Google's official test ID during development so you don't
+        // accidentally click-through on your own production ads.
+        return TestIds.BANNER;
+    }
+    return Platform.OS === 'ios'
+        ? PRODUCTION_UNIT_IDS.ios
+        : PRODUCTION_UNIT_IDS.android;
+};
 
 const BannerAdComponent = () => {
     const { isPro } = useSubscription();
-    const { theme } = useTheme();
+    const [adLoaded, setAdLoaded] = useState(false);
 
-    // 1. Privacy Check: If the user is Pro, we render NOTHING.
-    // This ensures no ad tracking code ever runs for them.
+    // 1. Privacy-first: Pro users never load ad SDK
     if (isPro) return null;
 
-    // 2. Render Mock Ad
+    const unitId = getAdUnitId();
+
     return (
-        <View style={[styles.container, { backgroundColor: theme.cardBg }]}>
-            <View style={[styles.adPlaceholder, { borderColor: theme.accent }]}>
-                <Text style={[styles.adLabel, { backgroundColor: theme.accent }]}>Ad</Text>
-                <Text style={[styles.adText, { color: theme.textSecondary }]}>
-                    Google AdMob Banner (Test Mode)
-                </Text>
-                <Text style={{ fontSize: 10, color: theme.textSecondary, marginTop: 4 }}>
-                    Upgrade to remove ads
-                </Text>
-            </View>
+        <View style={[styles.container, !adLoaded && styles.hidden]}>
+            <BannerAd
+                unitId={unitId}
+                size={BannerAdSize.BANNER}
+                requestOptions={{
+                    requestNonPersonalizedAdsOnly: false, // set true for GDPR/CCPA paths
+                    networkExtras: {},
+                }}
+                onAdLoaded={() => setAdLoaded(true)}
+                onAdFailedToLoad={(error) => {
+                    if (__DEV__) console.warn('[AdMob] Banner failed to load:', error);
+                    setAdLoaded(false);
+                }}
+            />
         </View>
     );
 };
@@ -34,31 +78,13 @@ const styles = StyleSheet.create({
     container: {
         width: '100%',
         alignItems: 'center',
-        paddingVertical: 10,
+        paddingVertical: 8,
     },
-    adPlaceholder: {
-        width: 320,
-        height: 50,
-        borderWidth: 1,
-        borderStyle: 'dashed',
-        borderRadius: 4,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(0,0,0,0.02)',
-    },
-    adLabel: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        color: '#fff',
-        fontSize: 10,
-        paddingHorizontal: 4,
-        paddingVertical: 1,
-        borderBottomRightRadius: 4,
-    },
-    adText: {
-        fontSize: 12,
-        fontWeight: 'bold',
+    hidden: {
+        // Collapse space until the ad actually loads to avoid layout shift
+        height: 0,
+        overflow: 'hidden',
+        paddingVertical: 0,
     },
 });
 

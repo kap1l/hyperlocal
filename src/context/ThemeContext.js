@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useColorScheme, Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Sentry from '@sentry/react-native';
 
 const ThemeContext = createContext();
 
@@ -102,6 +103,7 @@ export const ThemeProvider = ({ children }) => {
             if (savedMode) setMode(savedMode === 'oled' ? 'dark' : savedMode); // Migrate old 'oled' to 'dark'
             if (savedOled) setUseOled(savedOled === 'true');
         } catch (e) {
+        Sentry.captureException(e);
             console.error('Theme load error:', e);
         }
     };

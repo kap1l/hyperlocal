@@ -7,12 +7,28 @@ import { useWeather } from '../context/WeatherContext';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CHART_HEIGHT = 160;
 const CHART_WIDTH = SCREEN_WIDTH - 64;
-const BAR_WIDTH = CHART_WIDTH / 60;
 
+/**
+ * RainChart
+ *
+ * Supports two data resolutions:
+ *
+ *  1. PirateWeather: 60 per-minute data points → BAR_WIDTH = CHART_WIDTH / 60
+ *     Time labels: 0, 15m, 30m, 45m
+ *
+ *  2. Open-Meteo: `minutely.data` already has 60 interpolated minute-points
+ *     produced by OpenMeteoAdapter.interpolateMinutely(), so this chart works
+ *     identically for both sources.
+ *
+ * If fewer than 60 points are received (shouldn't happen after the adapter runs,
+ * but as a defensive measure) we fall back to 15-min bucket rendering by
+ * stretching bars proportionally across the chart width.
+ */
 const RainChart = ({ minutelyData, currently }) => {
     const { theme } = useTheme();
     const { units } = useWeather();
 
+    // ── Safety / temperature danger badge ────────────────────────────────
     const dangerInfo = useMemo(() => {
         if (!currently) return null;
         const isMetric = units === 'si';
@@ -22,18 +38,55 @@ const RainChart = ({ minutelyData, currently }) => {
         if (tempF < 10 || feelsLikeF < 5) return { label: 'Extremely Cold', color: '#ef4444' };
         if (tempF > 100 || feelsLikeF > 105) return { label: 'Extreme Heat', color: '#ef4444' };
         if (tempF < 32 || feelsLikeF < 25) return { label: 'Freezing', color: '#f59e0b' };
-        return null; // Return null if safe, don't clutter UI
+        return null;
     }, [currently, units]);
 
-    const hasRain = useMemo(() => {
-        if (!minutelyData) return false;
-        return minutelyData.slice(0, 60).some(m => (m.precipProbability || 0) > 0.1);
+    // ── Normalize data to exactly 60 display slots ────────────────────────
+    const displayData = useMemo(() => {
+        if (!minutelyData || minutelyData.length === 0) return [];
+
+        // Clamp to first 60 points (adapter guarantees this, but be safe)
+        if (minutelyData.length >= 60) return minutelyData.slice(0, 60);
+
+        // Fewer points (e.g. raw 4-point 15-min data without the adapter).
+        // Linearly interpolate between the pairs.
+        const interpolated = [];
+        for (let i = 0; i < minutelyData.length - 1; i++) {
+            const current = minutelyData[i];
+            const next = minutelyData[i + 1];
+            
+            for (let j = 0; j < 15; j++) {
+                const fraction = j / 15;
+                interpolated.push({
+                    time: current.time + (next.time - current.time) * fraction,
+                    precipProbability: (current.precipProbability || 0) + ((next.precipProbability || 0) - (current.precipProbability || 0)) * fraction,
+                    precipIntensity: (current.precipIntensity || 0) + ((next.precipIntensity || 0) - (current.precipIntensity || 0)) * fraction,
+                });
+            }
+            if (interpolated.length >= 60) break;
+        }
+        
+        while (interpolated.length < 60) {
+            interpolated.push({ ...interpolated[interpolated.length - 1] });
+        }
+        
+        return interpolated.slice(0, 60);
     }, [minutelyData]);
 
-    if (!minutelyData || minutelyData.length === 0) return null;
+    const hasRain = useMemo(() => {
+        if (displayData.length === 0) return false;
+        return displayData.some(m => (m.precipProbability || 0) > 0.1);
+    }, [displayData]);
 
-    // Don't show chart if completely dry, unless there is a temperature danger
+    if (!displayData || displayData.length === 0) return null;
+
+    // Don't show chart if completely dry and no temperature danger
     if (!hasRain && !dangerInfo) return null;
+
+    const BAR_WIDTH = CHART_WIDTH / displayData.length;
+
+    // Time label positions — always show Now, 15m, 30m, 45m
+    const timeLabels = [0, 15, 30, 45];
 
     return (
         <View style={[styles.container, {
@@ -55,8 +108,8 @@ const RainChart = ({ minutelyData, currently }) => {
                 <View style={styles.clearContainer}>
                     <Text style={[styles.clearText, { color: theme.textSecondary }]}>
                         {dangerInfo
-                            ? "No precipitation expected."
-                            : "No rain expected for the next hour."}
+                            ? 'No precipitation expected.'
+                            : 'No rain expected for the next hour.'}
                     </Text>
                 </View>
             ) : (
@@ -79,7 +132,7 @@ const RainChart = ({ minutelyData, currently }) => {
                             </LinearGradient>
                         </Defs>
 
-                        {/* Guides */}
+                        {/* Guide lines at 33% and 66% */}
                         {[0.33, 0.66].map((pct) => (
                             <Line
                                 key={pct}
@@ -94,31 +147,23 @@ const RainChart = ({ minutelyData, currently }) => {
                             />
                         ))}
 
-                        {/* Bars */}
-                        {minutelyData.slice(0, 60).map((minute, index) => {
+                        {/* Bars — one per display slot */}
+                        {displayData.map((minute, index) => {
                             const prob = minute.precipProbability || 0;
                             const intensity = minute.precipIntensity || 0;
-
-                            // Height based on probability, Color based on intensity logic
-                            // Actually, PirateWeather/DarkSky: Intensity is the main factor for "how hard".
-                            // But usually charts show Probability as height. Let's mix.
-                            // Height = Probability, but if Intensity is high, we boost visually.
-
                             const barHeight = prob * (CHART_HEIGHT - 40);
                             const x = index * BAR_WIDTH;
                             const y = CHART_HEIGHT - 20 - barHeight;
-
-                            // Use heavy gradient if intensity > 0.3 (rough mm/h threshold for visual pop)
-                            const isHeavy = intensity > 2; // high threshold for "purple"
+                            const isHeavy = intensity > 2;
 
                             return (
                                 <Rect
                                     key={index}
                                     x={x}
                                     y={y}
-                                    width={BAR_WIDTH * 0.8}
+                                    width={Math.max(BAR_WIDTH * 0.8, 1)}
                                     height={barHeight}
-                                    fill={isHeavy ? "url(#heavyGradient)" : "url(#rainGradient)"}
+                                    fill={isHeavy ? 'url(#heavyGradient)' : 'url(#rainGradient)'}
                                     rx={2}
                                 />
                             );
@@ -134,8 +179,8 @@ const RainChart = ({ minutelyData, currently }) => {
                             strokeWidth={1}
                         />
 
-                        {/* Time Labels */}
-                        {[0, 15, 30, 45].map((min) => (
+                        {/* Time labels at 0, 15, 30, 45 min marks */}
+                        {timeLabels.map((min) => (
                             <SvgText
                                 key={min}
                                 x={min * BAR_WIDTH + 2}
@@ -144,7 +189,7 @@ const RainChart = ({ minutelyData, currently }) => {
                                 fontSize="10"
                                 fontWeight="600"
                             >
-                                {min === 0 ? 'Now' : min + 'm'}
+                                {min === 0 ? 'Now' : `${min}m`}
                             </SvgText>
                         ))}
                     </Svg>
@@ -201,7 +246,7 @@ const styles = StyleSheet.create({
     intensityLabels: {
         height: CHART_HEIGHT - 20,
         justifyContent: 'space-between',
-        paddingBottom: 20, // Align with chart area
+        paddingBottom: 20,
         paddingTop: 0,
         width: 30,
     },
@@ -210,7 +255,7 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         textTransform: 'uppercase',
         opacity: 0.5,
-    }
+    },
 });
 
 export default RainChart;

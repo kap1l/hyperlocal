@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, StyleSheet, RefreshControl, View, TouchableOpacity, Animated, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as StoreReview from 'expo-store-review';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import WeatherBackground from '../components/WeatherBackground';
@@ -14,6 +16,8 @@ import DailyOutlookCard from '../components/DailyOutlookCard';
 import MinuteTextBanner from '../components/MinuteTextBanner';
 import CitySearchModal from '../components/CitySearchModal';
 import BestTimeModal from '../components/BestTimeModal';
+import SpotChips from '../components/SpotChips';
+import WeeklyForecastCard from '../components/WeeklyForecastCard';
 import { useWeather } from '../context/WeatherContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -21,22 +25,36 @@ import SmartSummaryCard from '../components/SmartSummaryCard';
 import AirQualityCard from '../components/AirQualityCard';
 import GoldenHourCard from '../components/GoldenHourCard';
 import OfflineBanner from '../components/OfflineBanner';
+import WeatherWarningBanner from '../components/WeatherWarningBanner';
 import BannerAdComponent from '../components/BannerAdComponent';
 import OnboardingOverlay from '../components/OnboardingOverlay';
 import CollapsibleSection from '../components/CollapsibleSection';
 import MoonPhaseCard from '../components/MoonPhaseCard';
 import PollenCard from '../components/PollenCard';
+import ShareCard from '../components/ShareCard';
 import { analyzeActivitySafety, getSeverityOverride } from '../utils/weatherSafety';
+import { getCardOrder, DEFAULT_ORDER } from '../services/CardOrderService';
+import { useIsFocused } from '@react-navigation/native';
 
 const HomeScreen = ({ navigation }) => {
-    const { weather, loading, error, refreshWeather, apiKey, locationName, setLocationConfig, isOffline, lastUpdated } = useWeather();
+    const { weather, loading, error, refreshWeather, apiKey, locationName, setLocationConfig, isOffline, lastUpdated, weatherWarnings } = useWeather();
     const { theme } = useTheme();
-    const { selectedActivity, units } = useWeather();
-    const { isPro, purchasePro } = useSubscription(); // Now uses the safe mock context
+    const { selectedActivity, units, addSpot } = useWeather();
+    const { isPro, isTrialing, trialDaysLeft, purchasePro } = useSubscription(); // Now uses the safe mock context
     const [prevLoading, setPrevLoading] = useState(false);
     const [searchVisible, setSearchVisible] = useState(false);
+    const [searchAction, setSearchAction] = useState('view');
     const [bestTimeVisible, setBestTimeVisible] = useState(false);
     const [fadeAnim] = useState(new Animated.Value(0));
+    const [trialBannerDismissed, setTrialBannerDismissed] = useState(true);
+    const [cardOrder, setCardOrder] = useState(DEFAULT_ORDER);
+    const isFocused = useIsFocused();
+
+    useEffect(() => {
+        if (isFocused) {
+            getCardOrder().then(setCardOrder);
+        }
+    }, [isFocused]);
 
     // Calculate detailed activity scores
     const activityAnalysis = React.useMemo(() => {
@@ -63,27 +81,83 @@ const HomeScreen = ({ navigation }) => {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             } else {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                triggerStoreReviewIfNeeded();
             }
         }
         setPrevLoading(loading);
     }, [loading]);
 
-    if (!apiKey) {
-        return (
-            <WeatherBackground condition="partly-cloudy-day">
-                <View style={styles.center}>
-                    <Text style={styles.text}>Please configure API Key in Settings.</Text>
-                </View>
-            </WeatherBackground>
-        )
-    }
+    const triggerStoreReviewIfNeeded = async () => {
+        try {
+            const hasPrompted = await AsyncStorage.getItem('@rating_prompted_1.1.0');
+            if (hasPrompted === 'true') return;
+
+            const countStr = await AsyncStorage.getItem('@app_open_count');
+            let count = countStr ? parseInt(countStr, 10) : 0;
+            count += 1;
+            
+            await AsyncStorage.setItem('@app_open_count', count.toString());
+
+            if (count === 3) {
+                if (await StoreReview.isAvailableAsync()) {
+                    await StoreReview.requestReview();
+                    await AsyncStorage.setItem('@rating_prompted_1.1.0', 'true');
+                }
+            }
+        } catch (e) {
+            console.log('Error triggering store review:', e);
+        }
+    };
+
+    // Check if trial banner was dismissed previously
+    useEffect(() => {
+        const checkTrialBanner = async () => {
+            try {
+                const dismissed = await AsyncStorage.getItem('@trial_banner_dismissed_1.1.0');
+                if (dismissed !== 'true') {
+                    setTrialBannerDismissed(false);
+                }
+            } catch (e) {
+                // Ignore error
+            }
+        };
+        if (isTrialing) {
+            checkTrialBanner();
+        }
+    }, [isTrialing]);
+
+    const dismissTrialBanner = async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setTrialBannerDismissed(true);
+        try {
+            await AsyncStorage.setItem('@trial_banner_dismissed_1.1.0', 'true');
+        } catch (e) {
+            // Ignore error
+        }
+    };
 
     return (
         <WeatherBackground condition={backgroundCondition}>
             <OnboardingOverlay />
+            <WeatherWarningBanner warnings={weatherWarnings} />
             <OfflineBanner isOffline={isOffline} lastUpdated={lastUpdated} />
+            
+            {isTrialing && !trialBannerDismissed && (
+                <View style={[styles.trialBanner, { backgroundColor: theme.accent }]}>
+                    <Text style={styles.trialText}>Free trial — {trialDaysLeft} days left</Text>
+                    <View style={styles.trialActions}>
+                        <TouchableOpacity style={styles.trialBtn} onPress={purchasePro}>
+                            <Text style={[styles.trialBtnText, { color: theme.accent }]}>Subscribe</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={dismissTrialBanner} style={styles.trialCloseBtn}>
+                            <Ionicons name="close" size={20} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
+
             <ScrollView
-                contentContainerStyle={styles.scroll}
+                contentContainerStyle={[styles.scroll, (isTrialing && !trialBannerDismissed) ? { paddingTop: 0 } : {}]}
                 refreshControl={
                     <RefreshControl
                         refreshing={loading}
@@ -117,6 +191,7 @@ const HomeScreen = ({ navigation }) => {
                                         );
                                         return;
                                     }
+                                    setSearchAction('view');
                                     setSearchVisible(true);
                                 }}
                             >
@@ -133,69 +208,107 @@ const HomeScreen = ({ navigation }) => {
                     </View>
                 </Animated.View>
 
+                <SpotChips onAddPress={() => {
+                    if (!isPro) {
+                        Alert.alert("Premium Feature 🔒", "Search for weather in other cities with OutWeather+! Free users get GPS-based local weather.", [
+                            { text: "Stay Local", style: "cancel" },
+                            { text: "Unlock ($1.99/mo)", onPress: purchasePro }
+                        ]);
+                        return;
+                    }
+                    setSearchAction('save');
+                    setSearchVisible(true);
+                }} />
+
                 {error && <Text style={styles.error}>{error}</Text>}
                 {weather && (
                     <Animated.View style={{ opacity: fadeAnim }}>
-                        <SmartSummaryCard weather={weather} activity={selectedActivity} />
                         <WeatherCard
                             currently={weather.currently}
                             dailyData={weather.daily?.data}
                         />
-                        <ExtendedActivityCard
-                            currently={weather.currently}
-                            analysis={activityAnalysis}
-                            onFindBestTime={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                setBestTimeVisible(true);
-                            }}
-                        />
 
-                        <CollapsibleSection title="Activity Overview" icon="fitness-outline" sectionId="activity-hub" accentColor="#22c55e">
-                            <ActivityHub
-                                minutelyData={weather.minutely?.data}
+                        <ShareCard>
+                            <ExtendedActivityCard
                                 currently={weather.currently}
+                                analysis={activityAnalysis}
+                                onFindBestTime={() => {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    setBestTimeVisible(true);
+                                }}
                             />
-                        </CollapsibleSection>
+                        </ShareCard>
 
-                        <CollapsibleSection title="Minute-by-Minute" icon="timer-outline" sectionId="minute-banner" accentColor="#3b82f6">
-                            <MinuteTextBanner minutelyData={weather.minutely?.data} />
-                        </CollapsibleSection>
-
-                        <CollapsibleSection title="Outdoor Comfort" icon="thermometer-outline" sectionId="comfort" accentColor="#f59e0b">
-                            <OutdoorComfortCard currently={weather.currently} />
-                        </CollapsibleSection>
-
-                        <CollapsibleSection title="Air Quality" icon="leaf-outline" sectionId="aqi" accentColor="#22c55e">
-                            <AirQualityCard />
-                        </CollapsibleSection>
-
-                        <CollapsibleSection title="Golden Hour" icon="sunny-outline" sectionId="golden-hour" accentColor="#f59e0b">
-                            <GoldenHourCard />
-                        </CollapsibleSection>
-
-                        <CollapsibleSection title="Moon & Stargazing" icon="moon-outline" sectionId="moon-phase" accentColor="#8b5cf6">
-                            <MoonPhaseCard />
-                        </CollapsibleSection>
-
-                        <CollapsibleSection title="Pollen Index (Est.)" icon="flower-outline" sectionId="pollen" accentColor="#ec4899">
-                            <PollenCard />
-                        </CollapsibleSection>
-
-                        <CollapsibleSection title="Hourly Timeline" icon="time-outline" sectionId="timeline" accentColor="#8b5cf6">
-                            <ActivityTimeline
-                                hourlyData={weather.hourly?.data}
-                                currently={weather.currently}
-                                currentAnalysis={activityAnalysis}
-                            />
-                        </CollapsibleSection>
-
-                        <CollapsibleSection title="7-Day Outlook" icon="calendar-outline" sectionId="daily" accentColor="#ec4899">
-                            <DailyOutlookCard dailyData={weather.daily?.data} />
-                        </CollapsibleSection>
-
-                        <CollapsibleSection title="Rain Forecast" icon="rainy-outline" sectionId="rain-chart" accentColor="#3b82f6">
-                            <RainChart minutelyData={weather.minutely?.data} currently={weather.currently} />
-                        </CollapsibleSection>
+                        {cardOrder.map(id => {
+                            switch (id) {
+                                case 'smart-summary':
+                                    return <SmartSummaryCard key={id} weather={weather} activity={selectedActivity} />;
+                                case 'activity-hub':
+                                    return (
+                                        <CollapsibleSection key={id} title="Activity Overview" icon="fitness-outline" sectionId="activity-hub" accentColor="#22c55e">
+                                            <ActivityHub minutelyData={weather.minutely?.data} currently={weather.currently} />
+                                        </CollapsibleSection>
+                                    );
+                                case 'minute-banner':
+                                    return (
+                                        <CollapsibleSection key={id} title="Minute-by-Minute" icon="timer-outline" sectionId="minute-banner" accentColor="#3b82f6">
+                                            <MinuteTextBanner minutelyData={weather.minutely?.data} />
+                                        </CollapsibleSection>
+                                    );
+                                case 'outdoor-comfort':
+                                    return (
+                                        <CollapsibleSection key={id} title="Outdoor Comfort" icon="thermometer-outline" sectionId="comfort" accentColor="#f59e0b">
+                                            <OutdoorComfortCard currently={weather.currently} />
+                                        </CollapsibleSection>
+                                    );
+                                case 'aqi':
+                                    return (
+                                        <CollapsibleSection key={id} title="Air Quality" icon="leaf-outline" sectionId="aqi" accentColor="#22c55e">
+                                            <AirQualityCard />
+                                        </CollapsibleSection>
+                                    );
+                                case 'golden-hour':
+                                    return (
+                                        <CollapsibleSection key={id} title="Golden Hour" icon="sunny-outline" sectionId="golden-hour" accentColor="#f59e0b">
+                                            <GoldenHourCard />
+                                        </CollapsibleSection>
+                                    );
+                                case 'moon-phase':
+                                    return (
+                                        <CollapsibleSection key={id} title="Moon & Stargazing" icon="moon-outline" sectionId="moon-phase" accentColor="#8b5cf6">
+                                            <MoonPhaseCard />
+                                        </CollapsibleSection>
+                                    );
+                                case 'pollen':
+                                    return (
+                                        <CollapsibleSection key={id} title="Pollen Index (Est.)" icon="flower-outline" sectionId="pollen" accentColor="#ec4899">
+                                            <PollenCard />
+                                        </CollapsibleSection>
+                                    );
+                                case 'timeline':
+                                    return (
+                                        <CollapsibleSection key={id} title="Hourly Timeline" icon="time-outline" sectionId="timeline" accentColor="#8b5cf6">
+                                            <ActivityTimeline hourlyData={weather.hourly?.data} currently={weather.currently} currentAnalysis={activityAnalysis} />
+                                        </CollapsibleSection>
+                                    );
+                                case 'daily':
+                                    return (
+                                        <CollapsibleSection key={id} title="7-Day" icon="calendar-outline" sectionId="daily" accentColor="#ec4899">
+                                            <DailyOutlookCard dailyData={weather.daily?.data} />
+                                        </CollapsibleSection>
+                                    );
+                                case 'weekly-forecast':
+                                    return <WeeklyForecastCard key={id} dailyData={weather.daily?.data} activity={selectedActivity} units={units} />;
+                                case 'rain-chart':
+                                    return (
+                                        <CollapsibleSection key={id} title="Rain Forecast" icon="rainy-outline" sectionId="rain-chart" accentColor="#3b82f6">
+                                            <RainChart minutelyData={weather.minutely?.data} currently={weather.currently} />
+                                        </CollapsibleSection>
+                                    );
+                                default:
+                                    return null;
+                            }
+                        })}
 
                         <BannerAdComponent />
                     </Animated.View>
@@ -207,6 +320,9 @@ const HomeScreen = ({ navigation }) => {
                 onClose={() => setSearchVisible(false)}
                 onSelect={(item) => {
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    if (searchAction === 'save') {
+                        addSpot({ id: Date.now().toString(), name: item.name, lat: item.latitude, lon: item.longitude, activity: selectedActivity });
+                    }
                     setLocationConfig({
                         mode: 'manual',
                         coords: { latitude: item.latitude, longitude: item.longitude },
@@ -294,6 +410,36 @@ const styles = StyleSheet.create({
         marginTop: 20,
         backgroundColor: 'rgba(0,0,0,0.5)',
         padding: 10,
+    },
+    trialBanner: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+    },
+    trialText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 14,
+    },
+    trialActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    trialBtn: {
+        backgroundColor: '#fff',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+    },
+    trialBtnText: {
+        fontWeight: 'bold',
+        fontSize: 12,
+    },
+    trialCloseBtn: {
+        padding: 4,
     }
 });
 

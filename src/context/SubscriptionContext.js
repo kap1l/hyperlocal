@@ -1,20 +1,25 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Alert, Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
+import Constants from 'expo-constants';
+import * as Sentry from '@sentry/react-native';
 
 const SubscriptionContext = createContext();
 
-// RevenueCat API Keys (replace with your actual keys from RevenueCat dashboard)
+// RevenueCat keys are injected at build time via app.config.js + EAS Secrets.
+// Set them with:
+//   eas secret:create --scope project --name REVENUECAT_ANDROID_KEY --value <key>
+//   eas secret:create --scope project --name REVENUECAT_IOS_KEY --value <key>
 const API_KEYS = {
-    apple: 'appl_YOUR_IOS_KEY_HERE',  // Replace with your iOS key
-    google: 'test_oSAJeVHcbmnrWgtsXqiomeaDNer'  // Your Android key
+    google: Constants.expoConfig?.extra?.revenueCatAndroidKey || null,
 };
 
 const ENTITLEMENT_ID = 'pro';
 
 export const SubscriptionProvider = ({ children }) => {
     const [isPro, setIsPro] = useState(false);
+    const [isTrialing, setIsTrialing] = useState(false);
+    const [trialDaysLeft, setTrialDaysLeft] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [offerings, setOfferings] = useState(null);
 
@@ -23,59 +28,56 @@ export const SubscriptionProvider = ({ children }) => {
     }, []);
 
     const initializeRevenueCat = async () => {
-        // EMERGENCY BYPASS for Test Keys in Release Builds
-        // Prevents "Wrong API Key" crash and grants free access
-        if (!__DEV__ && (API_KEYS.google.startsWith('test_') || API_KEYS.apple.startsWith('test_'))) {
-            console.warn('⚠️ using Test Key in Release - Bypassing RevenueCat & Granting Pro');
-            setIsPro(true);
-            AsyncStorage.setItem('@is_pro_user', 'true').catch(e => console.error('Failed to save bypass status', e));
+        const apiKey = API_KEYS.google;
+
+        // Gracefully degrade if no key is configured (purchases disabled, no Pro granted)
+        if (!apiKey) {
+            if (__DEV__) {
+                console.warn('⚠️ RevenueCat: No API key found. Set REVENUECAT_ANDROID_KEY / REVENUECAT_IOS_KEY as EAS Secrets.');
+            }
             setIsLoading(false);
             return;
         }
 
         try {
-            // Set log level for debugging
-            Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-
-            // Configure RevenueCat
-            const apiKey = Platform.OS === 'ios' ? API_KEYS.apple : API_KEYS.google;
-
-            // Check if using placeholder keys
-            if (apiKey.includes('YOUR_') || apiKey.includes('_KEY_HERE')) {
-                console.warn('⚠️ RevenueCat: Using placeholder API keys. Purchases will not work.');
-                console.warn('Please update API_KEYS in SubscriptionContext.js with your actual keys.');
-                setIsLoading(false);
-                return;
+            if (__DEV__) {
+                Purchases.setLogLevel(LOG_LEVEL.DEBUG);
             }
 
             await Purchases.configure({ apiKey });
 
-            // Get current customer info
             const customerInfo = await Purchases.getCustomerInfo();
             updateSubscriptionStatus(customerInfo);
 
-            // Get available offerings
             const availableOfferings = await Purchases.getOfferings();
             setOfferings(availableOfferings.current);
 
-            // Listen for purchase updates
             Purchases.addCustomerInfoUpdateListener(updateSubscriptionStatus);
 
             setIsLoading(false);
         } catch (error) {
+        Sentry.captureException(error);
             console.error('RevenueCat initialization error:', error);
             setIsLoading(false);
         }
     };
 
     const updateSubscriptionStatus = async (customerInfo) => {
-        const hasProEntitlement = typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== 'undefined';
+        const entitlement = customerInfo?.entitlements?.active[ENTITLEMENT_ID];
+        const hasProEntitlement = !!entitlement;
         setIsPro(hasProEntitlement);
-        console.log('Subscription status:', hasProEntitlement ? 'PRO' : 'FREE');
-        try {
-            await AsyncStorage.setItem('@is_pro_user', hasProEntitlement ? 'true' : 'false');
-        } catch (e) {
-            console.error('Failed to save subscription status:', e);
+        
+        if (hasProEntitlement && entitlement.periodType === 'trial') {
+            setIsTrialing(true);
+            const daysLeft = Math.ceil((new Date(entitlement.expirationDate) - new Date()) / 86400000);
+            setTrialDaysLeft(daysLeft > 0 ? daysLeft : 0);
+        } else {
+            setIsTrialing(false);
+            setTrialDaysLeft(null);
+        }
+
+        if (__DEV__) {
+            console.log('Subscription status:', hasProEntitlement ? 'PRO' : 'FREE', isTrialing ? `(Trial: ${trialDaysLeft} days left)` : '');
         }
     };
 
@@ -86,7 +88,6 @@ export const SubscriptionProvider = ({ children }) => {
                 return false;
             }
 
-            // Get the monthly package
             const monthlyPackage = offerings.availablePackages.find(
                 pkg => pkg.identifier === 'monthly' || pkg.identifier === '$rc_monthly'
             );
@@ -96,29 +97,24 @@ export const SubscriptionProvider = ({ children }) => {
                 return false;
             }
 
-            // Make the purchase
             const { customerInfo } = await Purchases.purchasePackage(monthlyPackage);
             updateSubscriptionStatus(customerInfo);
 
             if (customerInfo.entitlements.active[ENTITLEMENT_ID]) {
-                Alert.alert('Success!', 'Welcome to OutWeather+! 🎉');
+                Alert.alert('Start your 30-day free trial', "You won't be charged until day 31. Cancel anytime.");
                 return true;
             } else {
-                console.log('Purchase successful but no entitlement. Entitlements:', customerInfo.entitlements.active);
                 Alert.alert(
                     'Purchase Successful',
-                    'The purchase worked, but the "pro" entitlement (OutWeather+) wasn\'t granted. Please check your RevenueCat configuration.'
+                    'The purchase worked, but the "pro" entitlement wasn\'t granted. Please check your RevenueCat configuration.'
                 );
                 return true;
             }
-
-            return false;
         } catch (error) {
+        Sentry.captureException(error);
             if (error.userCancelled) {
-                console.log('User cancelled purchase');
                 return false;
             }
-
             console.error('Purchase error:', error);
             Alert.alert('Purchase Failed', error.message || 'An error occurred. Please try again.');
             return false;
@@ -136,13 +132,13 @@ export const SubscriptionProvider = ({ children }) => {
                 Alert.alert('No Purchases Found', 'No active subscriptions to restore.');
             }
         } catch (error) {
+        Sentry.captureException(error);
             console.error('Restore error:', error);
             Alert.alert('Restore Failed', 'Could not restore purchases. Please try again.');
         }
     };
 
     const presentPaywall = async () => {
-        // This is a simple implementation - you can customize the paywall UI
         if (isPro) {
             Alert.alert('Already Subscribed', 'You already have OutWeather+!');
             return;
@@ -171,7 +167,6 @@ export const SubscriptionProvider = ({ children }) => {
     };
 
     const presentCustomerCenter = async () => {
-        // Simple customer center - you can enhance this
         if (!isPro) {
             Alert.alert('Not Subscribed', 'You don\'t have an active subscription.');
             return;
@@ -185,7 +180,6 @@ export const SubscriptionProvider = ({ children }) => {
     };
 
     const debugResetSubscription = async () => {
-        // For testing only - resets local state
         setIsPro(false);
         Alert.alert('Debug', 'Subscription status reset to FREE (local only)');
     };
@@ -193,6 +187,8 @@ export const SubscriptionProvider = ({ children }) => {
     return (
         <SubscriptionContext.Provider value={{
             isPro,
+            isTrialing,
+            trialDaysLeft,
             isLoading,
             offerings,
             purchasePro,

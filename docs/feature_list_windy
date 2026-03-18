@@ -1,0 +1,237 @@
+**OutWeather — Master Agent Task List (Android Only)**
+
+**Stack:** React Native, Expo SDK 54, React 19, EAS Build, RevenueCat v9, Open-Meteo (target API), PirateWeather (current API).
+**Key files:** `src/context/WeatherContext.js`, `src/context/SubscriptionContext.js`, `src/services/WeatherService.js`, `src/components/BannerAdComponent.js`, `src/screens/HomeScreen.js`, `src/screens/SettingsScreen.js`, `src/screens/HourlyScreen.js`, `src/screens/RadarScreen.js`, `src/components/OnboardingOverlay.js`, `src/services/NotificationService.js`, `app.json`.
+
+---
+
+**BLOCK 1 — DATA LAYER**
+
+**TASK 1.1 — Migrate to Open-Meteo as default data source**
+
+Files to modify: `src/services/WeatherService.js`, `src/context/WeatherContext.js`
+
+1. In `WeatherService.js`, add a new function `fetchOpenMeteo(lat, lon, units)`. Call `https://api.open-meteo.com/v1/forecast` with params: `latitude={lat}&longitude={lon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,windspeed_10m,uv_index,cloudcover,visibility&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max,uv_index_max,sunrise,sunset&minutely_15=precipitation&current_weather=true&timezone=auto`. No API key required.
+2. Map the Open-Meteo response to the existing WeatherContext data shape: `currently` maps from `current_weather` + first index of `hourly` arrays. `hourly.data` maps from `hourly` arrays zipped by index into objects with keys: `time`, `temperature`, `apparentTemperature`, `precipProbability`, `precipIntensity`, `windSpeed`, `uvIndex`, `cloudCover`, `visibility`, `summary`. `daily.data` maps from `daily` arrays. `minutely.data` maps from `minutely_15` arrays interpolated to per-minute entries.
+3. In `WeatherContext.js`, replace the PirateWeather fetch call with `fetchOpenMeteo`. Keep the PirateWeather path in a fallback `try/catch` — if Open-Meteo fails, fall back to PirateWeather if user has a key stored.
+4. Verify all existing components still receive correct data: `RainChart`, `HourlyScreen`, `SmartSummaryCard`, `AirQualityCard`, `GoldenHourCard`, `ActivityHub`. Fix any null/undefined access errors.
+
+**TASK 1.2 — Handle 15-minute interval gap in RainChart**
+
+Files to modify: `src/components/RainChart.js`
+
+1. Detect whether incoming `minutely.data` has entries spaced 1 minute or 15 minutes apart by comparing `data[1].time - data[0].time`.
+2. If spacing is 900 seconds (15 min), linearly interpolate between each pair of points to produce 1-minute resolution entries before rendering.
+3. Update chart x-axis labels to show time markers every 15 minutes regardless of interpolation.
+
+**TASK 1.3 — Remove user-facing API key input for default users**
+
+Files to modify: `src/screens/SettingsScreen.js`
+
+1. Wrap the existing API key `TextInput` and associated label in a collapsible `Advanced` section gated by a toggle, defaulting to hidden.
+2. Add a label above it: `"Optional: Override with your own PirateWeather key"`.
+3. Remove the `"Get a free key from PirateWeather.net ↗"` link from the default visible settings.
+
+---
+
+**BLOCK 2 — MONETISATION**
+
+**TASK 2.1 — Replace mock AdMob with real SDK**
+
+Files to modify: `src/components/BannerAdComponent.js`, `app.json`, `package.json`
+
+1. Run `npx expo install react-native-google-mobile-ads`.
+2. In `app.json`, replace `"googleMobileAdsAppId": "ca-app-pub-3940256099942544~3347511713"` with your real production AdMob App ID.
+3. In `BannerAdComponent.js`, replace the mock `View` placeholder with a real `BannerAd` component from `react-native-google-mobile-ads`. Use `BannerAdSize.BANNER`. Use `TestIds.BANNER` when `__DEV__` is true, use your real Ad Unit ID in production. Keep the existing `if (isPro) return null` guard unchanged.
+
+**TASK 2.2 — Wire live RevenueCat keys**
+
+Files to modify: `src/context/SubscriptionContext.js`
+
+1. Replace `google: 'test_oSAJeVHcbmnrWgtsXqiomeaDNer'` with your live Google Play RevenueCat API key.
+2. Remove the entire emergency bypass block (lines that check `API_KEYS.google.startsWith('test_')` and call `setIsPro(true)`).
+3. Remove the `apple` key from `API_KEYS` entirely for now. Only configure `Platform.OS === 'android'` branch.
+
+**TASK 2.3 — Implement 30-day free trial**
+
+Files to modify: `src/context/SubscriptionContext.js`, `src/components/OnboardingOverlay.js`, `src/screens/HomeScreen.js`, `src/screens/SettingsScreen.js`
+
+1. In `SubscriptionContext.js`, add state `isTrialing` (bool) and `trialDaysLeft` (int|null). In `updateSubscriptionStatus()`, after setting `isPro`, read `entitlement.periodType` — if `=== 'trial'` set `isTrialing(true)` and compute `trialDaysLeft` as `Math.ceil((new Date(entitlement.expirationDate) - new Date()) / 86400000)`. Expose both from Provider.
+2. In `purchasePro()`, update the Alert message to: `"Start your 30-day free trial. You won't be charged until day 31. Cancel anytime."`.
+3. In `OnboardingOverlay.js`, on the last slide (index 4), add a Pro benefits card above the Get Started button listing: `"✓ All 13 activities  ✓ City search  ✓ No ads  ✓ 30 days free"`. Add a secondary `TouchableOpacity` labelled `"Start Free Trial"` that calls `purchasePro()` from `useSubscription()`. The existing `"Get Started"` button remains and still completes onboarding.
+4. In `HomeScreen.js`, when `isTrialing === true`, render a dismissible banner below the header: `"Free trial — {trialDaysLeft} days left"` with a `"Subscribe"` CTA. Dismiss stores a flag in AsyncStorage keyed `@trial_banner_dismissed_{version}`.
+5. In `SettingsScreen.js`, change every `"Premium Feature 🔒"` Alert body to: `"Try OutWeather+ free for 30 days — unlock all activities, remove ads, and search any city."`. Change CTA button label from `"Upgrade ($1.99/mo)"` to `"Start Free Trial"`.
+
+---
+
+**BLOCK 3 — FIXES AND POLISH**
+
+**TASK 3.1 — Fix bundle identifier**
+
+Files to modify: `app.json`
+
+1. Change `ios.bundleIdentifier` from `com.anonymous.microweather` to `com.antigravity.outweather`.
+2. Change `android.package` from `com.antigravity.microrain` to `com.antigravity.outweather` for consistency.
+
+**TASK 3.2 — Fix AI Smart Summary label**
+
+Files to modify: `src/components/SmartSummaryCard.js`, `src/screens/HomeScreen.js`, `src/components/OnboardingOverlay.js`, `docs/STORE_LISTING.md`
+
+1. Replace every instance of `"AI Smart Summary"` and `"AI"` prefix with `"Smart Summary"` in all UI-facing strings.
+2. In `docs/STORE_LISTING.md`, remove the `"AI"` label from the feature description. Change to: `"Skip the charts. Get a plain-English daily briefing telling you exactly when to go out and why."`.
+
+**TASK 3.3 — Smart daily notification**
+
+Files to modify: `src/services/NotificationService.js`, `src/services/BackgroundWeatherTask.js`
+
+1. In `NotificationService.js`, change `scheduleDailyBriefing()` to accept a `weatherData` and `activity` param. Call `generateDailySummary(weatherData, activity)` from `SmartSummaryService.js` and use the returned string as the notification body. Truncate to 100 characters if longer.
+2. Cap the title dynamically: if best window exists use `"🏃 Best window found for today"`, if no good windows use `"⚠️ Tough conditions today"`, otherwise `"☀️ Your OutWeather briefing"`.
+3. In `BackgroundWeatherTask.js`, after fetching fresh weather data, call the updated `scheduleDailyBriefing(weatherData, storedActivity)` where `storedActivity` is read from AsyncStorage key `@selected_activity`.
+
+**TASK 3.4 — App store rating prompt**
+
+Files to modify: `src/screens/HomeScreen.js`
+
+1. Run `npx expo install expo-store-review`.
+2. In `HomeScreen.js`, after a successful `refreshWeather()` call, read AsyncStorage key `@app_open_count`. Increment and write back. On count === 3, and if `StoreReview.isAvailableAsync()` returns true, call `StoreReview.requestReview()`. Write `@rating_prompted_1.1.0` to AsyncStorage after firing so it never fires again for this version.
+
+**TASK 3.5 — Add Sentry crash reporting**
+
+Files to modify: `App.js`, all `catch` blocks in `src/services/`
+
+1. Run `npx expo install @sentry/react-native`.
+2. In `App.js`, call `Sentry.init({ dsn: 'YOUR_SENTRY_DSN', environment: __DEV__ ? 'development' : 'production' })` before the root component renders. Wrap the root component with `Sentry.wrap()`.
+3. In every existing `catch (error)` block across all service files, add `Sentry.captureException(error)` before or alongside the existing `console.error` call.
+
+**TASK 3.6 — Unlock Cycling for free tier**
+
+Files to modify: `src/screens/SettingsScreen.js`
+
+1. In the `activities` array, change `{ id: 'cycle', ..., locked: !isPro }` to `locked: false`.
+2. Ensure `analyzeActivitySafety` in `weatherSafety.js` has a threshold entry for `cycle` — it already does, no change needed.
+
+**TASK 3.7 — Production build (Android only)**
+
+1. Run `eas build --platform android --profile production`.
+2. Confirm `.aab` artifact is generated without errors.
+3. Submit to Google Play internal testing track.
+
+---
+
+**BLOCK 4 — NEW FEATURES**
+
+**TASK 4.1 — Saved Locations (Spots)**
+
+Files to create: `src/services/SpotService.js`, `src/components/SpotChips.js`
+Files to modify: `src/context/WeatherContext.js`, `src/screens/HomeScreen.js`, `src/screens/SettingsScreen.js`
+
+1. In `SpotService.js`: implement `getSpots()` — reads `@saved_spots` from AsyncStorage, returns array or `[]`. Implement `addSpot(spot)` where spot shape is `{ id: string, name: string, lat: number, lon: number, activity: string }` — appends to array and writes back. Implement `removeSpot(id)` — filters out by id and writes back.
+2. In `WeatherContext.js`, load `getSpots()` in the existing mount `useEffect` into state `savedSpots`. Expose `savedSpots`, `addSpot`, `removeSpot` from Provider.
+3. In `SpotChips.js`, render a horizontal `ScrollView` of `TouchableOpacity` chips. Each chip shows `spot.name`. On press call `setLocationConfig({ mode: 'manual', lat: spot.lat, lon: spot.lon })`. Render a `+` chip at the end that opens `CitySearchModal`. Style chips with `theme.accent` border and `theme.cardBg` background.
+4. In `HomeScreen.js`, render `<SpotChips />` directly below the header `Animated.View`.
+5. In `SettingsScreen.js`, add a `"Saved Spots"` section rendering a `FlatList` of spots with a delete icon per row calling `removeSpot(id)`.
+
+**TASK 4.2 — 7-Day Activity Forecast Card**
+
+Files to create: `src/components/WeeklyForecastCard.js`
+Files to modify: `src/screens/HomeScreen.js`
+
+1. In `WeeklyForecastCard.js`, accept props `dailyData` (array of 7), `activity` (string), `units` (string). For each day, call `analyzeActivitySafety(activity, dayObject, units)` from `weatherSafety.js`. Render a row per day with: abbreviated day label (Mon/Tue etc from `new Date(day.time * 1000)`), a score bar (`View` with width `score%` of a fixed container, color green if score ≥ 70, amber if ≥ 40, red if < 40), high/low temperature. Wrap the whole card in the existing `CollapsibleSection` component with `title="This Week"` and `sectionId="weekly-forecast"`.
+2. In `HomeScreen.js`, render `<WeeklyForecastCard dailyData={weather?.daily?.data} activity={selectedActivity} units={units} />` after `DailyOutlookCard`.
+
+**TASK 4.3 — Feels-Like Temperature Toggle**
+
+Files to modify: `src/screens/HomeScreen.js`
+
+1. Add `const [showFeelsLike, setShowFeelsLike] = useState(false)`.
+2. Wrap the temperature display in the header in a `TouchableOpacity` with `onPress={() => setShowFeelsLike(p => !p)}`.
+3. Display `weather?.currently?.apparentTemperature` when `showFeelsLike` is true, else `weather?.currently?.temperature`.
+4. Render a sub-label below reading `"feels like"` or `"actual"` styled with `theme.textSecondary` and `fontSize: 11`.
+
+**TASK 4.4 — Precipitation Intensity on Hourly Screen**
+
+Files to modify: `src/screens/HourlyScreen.js`
+
+1. In `HourlyItem`, derive intensity label from `item.precipIntensity`: < 0.01 → skip rendering, 0.01–0.1 → `"Light"` color `#60a5fa`, 0.1–0.3 → `"Moderate"` color `#3b82f6`, > 0.3 → `"Heavy"` color `#1d4ed8`.
+2. Only render the label when `item.precipProbability > 0.2`.
+3. Render inline next to the existing rain percentage stat inside the `statItem` view.
+
+**TASK 4.5 — Pressure Trend Indicator**
+
+Files to modify: `src/context/WeatherContext.js`, `src/screens/HomeScreen.js`
+
+1. In `WeatherContext.js`, add state `pressureHistory` (array). After every successful `refreshWeather()`, append `{ time: Date.now(), value: weather.currently.pressure }`. Cap at 6 entries using `.slice(-6)`. Persist to `@pressure_history` in AsyncStorage and load on mount. Expose `pressureHistory` from Provider.
+2. Add helper `getPressureTrend(history)`: compare `history[0].value` vs `history[history.length-1].value`. Diff > 2 → `{ label: 'Rising', icon: 'arrow-up-circle-outline', color: '#22c55e' }`. Diff < -2 → `{ label: 'Falling', icon: 'arrow-down-circle-outline', color: '#ef4444' }`. Otherwise → `{ label: 'Steady', icon: 'remove-circle-outline', color: '#94a3b8' }`.
+3. In `HomeScreen.js`, render the trend as an `Ionicons` icon + label row inside `OutdoorComfortCard`. Only render when `pressureHistory.length >= 2`.
+
+**TASK 4.6 — Official Weather Warnings Banner**
+
+Files to create: `src/services/WeatherWarningService.js`, `src/components/WeatherWarningBanner.js`
+Files to modify: `src/context/WeatherContext.js`, `src/screens/HomeScreen.js`
+
+1. In `WeatherWarningService.js`, implement `fetchWarnings(lat, lon)`. If lat is between 24–50 and lon is between -125 and -66 (US bounds), call `https://api.weather.gov/alerts/active?point={lat},{lon}` and return `response.features.map(f => ({ id: f.id, title: f.properties.headline, severity: f.properties.severity }))`. Otherwise return `[]`. Wrap in try/catch returning `[]` on any error.
+2. In `WeatherContext.js`, add state `weatherWarnings` initialised to `[]`. Call `fetchWarnings(lat, lon)` inside `refreshWeather()` after weather resolves. Expose from Provider.
+3. In `WeatherWarningBanner.js`, accept prop `warnings`. If `warnings.length === 0` return null. Render a red banner with `Ionicons name="warning-outline"` and `warnings[0].title`. If `warnings.length > 1` append `" +{warnings.length - 1} more"`. Include a dismiss `TouchableOpacity` (X icon) that sets local `dismissed` state to hide the banner.
+4. In `HomeScreen.js`, render `<WeatherWarningBanner warnings={weatherWarnings} />` above `<OfflineBanner />`.
+
+**TASK 4.7 — Customisable Home Screen Card Order (Pro only)**
+
+Files to create: `src/services/CardOrderService.js`, `src/screens/CardOrderScreen.js`
+Files to modify: `src/screens/HomeScreen.js`, `src/screens/SettingsScreen.js`, `src/navigation/AppNavigator.js`
+
+1. In `CardOrderService.js`, define `DEFAULT_ORDER = ['smart-summary', 'rain-chart', 'activity-hub', 'aqi', 'pollen', 'golden-hour', 'moon-phase', 'outdoor-comfort', 'weekly-forecast']`. Implement `getCardOrder()` reads `@card_order` from AsyncStorage, returns parsed array or `DEFAULT_ORDER`. Implement `saveCardOrder(order)` writes array.
+2. In `HomeScreen.js`, load card order in a `useEffect` into state `cardOrder`. Replace the hardcoded card render sequence with `cardOrder.map(id => { switch(id) { case 'smart-summary': return <SmartSummaryCard ... />; case 'rain-chart': return <RainChart ... />; ... default: return null; } })`.
+3. In `CardOrderScreen.js`, render `cardOrder` as a `FlatList` with up/down arrow `TouchableOpacity` buttons per row. On each reorder call `saveCardOrder(newOrder)`. Add a `"Reset to Default"` button that calls `saveCardOrder(DEFAULT_ORDER)`.
+4. In `AppNavigator.js`, add `CardOrderScreen` to the stack navigator.
+5. In `SettingsScreen.js`, add a row `"Customise Home Screen"` gated by `isPro`. On press navigate to `CardOrderScreen`. If `!isPro`, show the standard upgrade Alert instead.
+
+**TASK 4.8 — Share Activity Score Card**
+
+Files to create: `src/components/ShareCard.js`
+Files to modify: `src/screens/HomeScreen.js`
+
+1. Run `npx expo install react-native-view-shot`.
+2. In `ShareCard.js`, create a styled `View` (not rendered on screen, captured off-screen) showing: app name `"OutWeather"`, current activity name, score as large number, condition summary, temperature, location name, and tagline `"outweather.app"`. Style with `theme.cardBg` background and `theme.accent` accents. Attach a `ref` for `ViewShot`.
+3. In `HomeScreen.js`, add a share `TouchableOpacity` (icon: `share-social-outline`) in the header row next to the location name. On press, call `viewShotRef.current.capture()` to get a base64 image URI, then call `Share.share({ url: imageUri, message: 'My activity score today via OutWeather' })`. On Android use `Share.share({ message: ... })` with the file URI written to `FileSystem.cacheDirectory`.
+
+
+
+Three tasks in the list have US-specific dependencies. Here are the targeted fixes — drop these into the master list as replacements:
+
+---
+
+**TASK 1.1 — Open-Meteo data source (replace minutely section only)**
+
+Open-Meteo itself is global — no change needed there. However remove any fallback logic that calls NWS or references US-only endpoints. The PirateWeather fallback is fine as it is global too.
+
+---
+
+**TASK 4.6 — Weather Warnings Banner (full replacement)**
+
+Previous version used `api.weather.gov` which is US-only. Replace entirely:
+
+Files to create: `src/services/WeatherWarningService.js`, `src/components/WeatherWarningBanner.js`
+Files to modify: `src/context/WeatherContext.js`, `src/screens/HomeScreen.js`
+
+1. In `WeatherWarningService.js`, implement `fetchWarnings(lat, lon)`. Call Open-Meteo's forecast endpoint with the alerts param: `https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&alerts=alerts&timezone=auto`. Parse `response.alerts` array and return `response.alerts?.map(a => ({ id: a.event + a.start, title: a.event, description: a.description, severity: a.severity || 'moderate', start: a.start, end: a.end })) || []`. Wrap in try/catch returning `[]` on any error. No API key required. Works globally.
+2. In `WeatherContext.js`, add state `weatherWarnings` initialised to `[]`. Call `fetchWarnings(lat, lon)` inside `refreshWeather()` after weather resolves. Expose from Provider.
+3. In `WeatherWarningBanner.js`, accept prop `warnings`. If `warnings.length === 0` return null. Render a red banner with `Ionicons name="warning-outline"` and `warnings[0].title`. If `warnings.length > 1` append `" +{warnings.length - 1} more"`. Include a dismiss `TouchableOpacity` (X icon) that sets local `dismissed` state to hide the banner.
+4. In `HomeScreen.js`, render `<WeatherWarningBanner warnings={weatherWarnings} />` above `<OfflineBanner />`.
+
+---
+
+**TASK 3.3 — Smart Daily Notification (remove NWS reference)**
+
+No code change needed — `SmartSummaryService.js` and `NotificationService.js` have no US dependency. The task as written is already global-safe. No action required.
+
+---
+
+**TASK 4.5 — Pressure Trend (note)**
+
+`weather.currently.pressure` comes from Open-Meteo globally — no change needed.
+
+---
+
+**One additional global-safety check for the agent across all tasks:**
+
+In `WeatherService.js`, ensure no hardcoded coordinate bounds are used anywhere to decide which API to call. All routing decisions must be based solely on user preference or API availability, never on whether the user's coordinates fall within a specific country or region.

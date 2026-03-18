@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 import { useTheme } from '../context/ThemeContext';
 import { findBestTimeSlots } from '../utils/ActivityScheduler';
 import { LinearGradient } from 'expo-linear-gradient';
+import { logBestTimeFinderUsed } from '../services/AppReviewService';
 
 // Helper component for Date Pill
 const DatePill = ({ date, isSelected, onSelect, theme }) => {
@@ -55,6 +56,11 @@ const BestTimeModal = ({ visible, onClose, hourlyData, activityId, units }) => {
             // Find best slots for the SPECIFIC selected date
             const best = findBestTimeSlots(hourlyData, activityId, units, selectedDate);
             setSlots(best);
+
+            if (best.length > 0) {
+                // If the user successfully used Best Time Finder, log it to conditionally ask for a review
+                logBestTimeFinderUsed();
+            }
         }
     }, [visible, hourlyData, activityId, selectedDate]);
 

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur'; // Use expo-blur for glass effect
 import { useTheme } from '../context/ThemeContext';
 import { geocodeAddress } from '../services/LocationService';
+import * as Sentry from '@sentry/react-native';
 
 const CitySearchModal = ({ visible, onClose, onSelect }) => {
     const { theme } = useTheme();
@@ -25,6 +26,7 @@ const CitySearchModal = ({ visible, onClose, onSelect }) => {
             const unique = data.filter((v, i, a) => a.findIndex(t => (t.latitude === v.latitude && t.longitude === v.longitude)) === i);
             setResults(unique);
         } catch (e) {
+        Sentry.captureException(e);
             setError("Could not find that location. Try a different city name.");
         } finally {
             setLoading(false);

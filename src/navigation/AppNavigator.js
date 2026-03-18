@@ -1,5 +1,6 @@
 import React from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { View, Text, SafeAreaView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,10 +12,12 @@ import RadarScreen from '../screens/RadarScreen';
 import HourlyScreen from '../screens/HourlyScreen';
 import AlertsScreen from '../screens/AlertsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import CardOrderScreen from '../screens/CardOrderScreen';
 
 const Tab = createMaterialTopTabNavigator();
+const Stack = createStackNavigator();
 
-const AppNavigator = () => {
+const TabNavigator = () => {
     const { theme } = useTheme();
     const insets = useSafeAreaInsets();
 
@@ -132,6 +135,15 @@ const AppNavigator = () => {
                 listeners={{ tabPress: triggerHaptic }}
             />
         </Tab.Navigator>
+    );
+};
+
+const AppNavigator = () => {
+    return (
+        <Stack.Navigator screenOptions={{ headerShown: false, presentation: 'modal' }}>
+            <Stack.Screen name="MainTabs" component={TabNavigator} />
+            <Stack.Screen name="CardOrder" component={CardOrderScreen} />
+        </Stack.Navigator>
     );
 };
 

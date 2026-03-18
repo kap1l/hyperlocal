@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
+import * as Sentry from '@sentry/react-native';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -39,7 +40,8 @@ const CollapsibleSection = ({
                     rotateAnim.setValue(states[sectionId] ? 1 : 0);
                 }
             }
-        } catch (e) { }
+        } catch (e) {
+        Sentry.captureException(e); }
     };
 
     const saveCollapseState = async (collapsed) => {
@@ -48,7 +50,8 @@ const CollapsibleSection = ({
             const states = saved ? JSON.parse(saved) : {};
             states[sectionId] = collapsed;
             await AsyncStorage.setItem(COLLAPSE_STATE_KEY, JSON.stringify(states));
-        } catch (e) { }
+        } catch (e) {
+        Sentry.captureException(e); }
     };
 
     const toggleCollapse = () => {

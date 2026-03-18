@@ -6,12 +6,12 @@ import { getSeverityOverride } from '../utils/weatherSafety';
 
 const WeatherCard = ({ currently, dailyData }) => {
     const { theme } = useTheme();
+    const [showFeelsLike, setShowFeelsLike] = React.useState(false);
     if (!currently) return null;
 
-    const { temperature, summary, precipProbability, precipIntensity, windSpeed } = currently;
+    const { temperature, apparentTemperature, summary, precipProbability, precipIntensity, windSpeed } = currently;
 
-    // DEBUG: Inspect raw values
-    console.log("DEBUG WEATHER:", { temp: temperature, intensity: precipIntensity, wind: windSpeed, summary });
+    const displayTemp = showFeelsLike && apparentTemperature !== undefined ? apparentTemperature : temperature;
 
     const severityOverride = getSeverityOverride(currently, false); // assume US for now or pass props
     const displaySummary = severityOverride || summary;
@@ -31,7 +31,17 @@ const WeatherCard = ({ currently, dailyData }) => {
             shadowColor: theme.shadow
         }]}>
             <Text style={[styles.summary, { color: theme.textSecondary }]}>{displaySummary}</Text>
-            <Text style={[styles.temp, { color: theme.text }]}>{Math.round(temperature)}°</Text>
+
+            <TouchableOpacity 
+                activeOpacity={0.7} 
+                onPress={() => setShowFeelsLike(p => !p)}
+                style={{ alignItems: 'center', marginBottom: 4 }}
+            >
+                <Text style={[styles.temp, { color: theme.text }]}>{Math.round(displayTemp)}°</Text>
+                <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: -8, textTransform: 'uppercase', letterSpacing: 1, fontWeight: '600' }}>
+                    {showFeelsLike ? 'feels like' : 'actual'}
+                </Text>
+            </TouchableOpacity>
 
             <View style={styles.sunRow}>
                 <View style={styles.sunItem}>

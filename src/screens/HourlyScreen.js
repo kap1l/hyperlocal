@@ -29,6 +29,21 @@ const HourlyItem = React.memo(({ item, isExpanded, onToggle, theme }) => {
 
     const mainReason = readiness.advice;
 
+    let intensityLabel = null;
+    let intensityColor = null;
+    if (item.precipProbability > 0.2) {
+        if (item.precipIntensity > 0.3) {
+            intensityLabel = 'Heavy';
+            intensityColor = '#1d4ed8';
+        } else if (item.precipIntensity >= 0.1) {
+            intensityLabel = 'Moderate';
+            intensityColor = '#3b82f6';
+        } else if (item.precipIntensity >= 0.01) {
+            intensityLabel = 'Light';
+            intensityColor = '#60a5fa';
+        }
+    }
+
     return (
         <TouchableOpacity
             activeOpacity={0.9}
@@ -75,7 +90,12 @@ const HourlyItem = React.memo(({ item, isExpanded, onToggle, theme }) => {
                         <View style={styles.statItem}>
                             <Ionicons name="water-outline" size={14} color={theme.accent} />
                             <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Rain</Text>
-                            <Text style={[styles.statValue, { color: theme.text }]}>{Math.round(item.precipProbability * 100)}%</Text>
+                            <Text style={[styles.statValue, { color: theme.text }]}>
+                                {Math.round(item.precipProbability * 100)}%
+                                {intensityLabel && (
+                                    <Text style={{ fontSize: 10, color: intensityColor, fontWeight: '700' }}> {intensityLabel}</Text>
+                                )}
+                            </Text>
                         </View>
                         <View style={styles.statItem}>
                             <Ionicons name="leaf-outline" size={14} color={theme.accent} />

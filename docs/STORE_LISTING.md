@@ -1,8 +1,7 @@
 # Google Play Store Listing
 
 ## App Details
-*   **App Name:** OutWeather: Activity & Forecast
-*   **Short Description (80 chars):** Hyperlocal weather, activity scores, and AI summaries for outdoor enthusiasts.
+*   **Short Description (80 chars):** Hyperlocal weather, activity scores, and daily briefings for outdoor enthusiasts.
 
 ## Full Description
 **Stop guessing. Start doing.**
@@ -14,8 +13,8 @@ OutWeather isn't just another weather app—it's your personal outdoor activity 
 🏃 **Activity & Safety Scores**
 Don’t just check the temperature. See instantly if conditions are perfect for Running, Cycling, or Hiking. Our algorithms account for wind, humidity, precipitation, and UV index to keep you safe and comfortable.
 
-🤖 **AI Smart Summaries**
-Skip the complex charts. Get a daily briefing in plain English that tells you exactly what to expect. "Perfect distinct morning for a run, but rain starts at 4 PM."
+🤖 **Smart Summaries**
+Skip the charts. Get a plain-English daily briefing telling you exactly when to go out and why.
 
 🌅 **Golden Hour Tracker**
 Chase the sun. Know exactly when the lighting is perfect for photography or that scenic evening jog.

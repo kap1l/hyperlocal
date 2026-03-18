@@ -1,3 +1,7 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Sentry from '@sentry/react-native';
+
+const STORAGE_KEY = '@air_quality_cache';
 /**
  * Air Quality Service - Fetches AQI data from Open-Meteo (Free, no API key required)
  * https://open-meteo.com/en/docs/air-quality-api
@@ -97,7 +101,18 @@ export const fetchAirQuality = async (lat, lon) => {
             }
         };
     } catch (error) {
-        console.error('Error fetching air quality:', error);
+        Sentry.captureException(error);
+        console.error('AirQualityService error:', error.message);
+        
+        // Try fallback to cache one last time
+        try {
+            const cached = await AsyncStorage.getItem(STORAGE_KEY);
+            if (cached) return JSON.parse(cached).data;
+        } catch (backupError) {
+            Sentry.captureException(backupError);
+            console.error('Failed to read backup cache', backupError);
+            return null;
+        }
         return null;
     }
 };

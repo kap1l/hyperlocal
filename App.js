@@ -4,11 +4,18 @@ import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
+import * as Sentry from '@sentry/react-native';
 
 import { WeatherProvider } from './src/context/WeatherContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { SubscriptionProvider } from './src/context/SubscriptionContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import { logAppOpenForReview } from './src/services/AppReviewService';
+
+Sentry.init({
+  dsn: 'YOUR_SENTRY_DSN_HERE', // TODO: replace with your real Sentry DSN
+  debug: false,
+});
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -24,6 +31,7 @@ class ErrorBoundary extends Component {
 
     componentDidCatch(error, errorInfo) {
         console.error("Uncaught error:", error, errorInfo);
+        Sentry.captureException(error);
     }
 
     render() {
@@ -71,6 +79,9 @@ const AppContent = () => {
             if (foreStatus === 'granted') {
                 await Location.requestBackgroundPermissionsAsync();
             }
+            
+            // Trigger app review logic
+            logAppOpenForReview();
         }
         setupMobile();
     }, []);
@@ -98,4 +109,4 @@ const App = () => {
     );
 };
 
-export default App;
+export default Sentry.wrap(App);

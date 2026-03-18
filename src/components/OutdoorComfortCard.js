@@ -6,7 +6,17 @@ import { useWeather } from '../context/WeatherContext';
 
 const OutdoorComfortCard = ({ currently }) => {
     const { theme } = useTheme();
-    const { units } = useWeather();
+    const { units, pressureHistory } = useWeather();
+
+    const getPressureTrend = (history) => {
+        if (!history || history.length < 2) return null;
+        const diff = history[history.length - 1].value - history[0].value;
+        if (diff > 2) return { label: 'Rising', icon: 'arrow-up-circle-outline', color: '#22c55e' };
+        if (diff < -2) return { label: 'Falling', icon: 'arrow-down-circle-outline', color: '#ef4444' };
+        return { label: 'Steady', icon: 'remove-circle-outline', color: '#94a3b8' };
+    };
+
+    const pressureTrend = useMemo(() => getPressureTrend(pressureHistory), [pressureHistory]);
 
     const analysis = useMemo(() => {
         if (!currently) return null;
@@ -129,6 +139,16 @@ const OutdoorComfortCard = ({ currently }) => {
                         <Text style={[styles.itemValue, { color: theme.text }]}>{Math.round(currently.windSpeed)} mph</Text>
                     </View>
                 </View>
+
+                {pressureTrend && (
+                    <View style={styles.item}>
+                        <Ionicons name={pressureTrend.icon} size={20} color={pressureTrend.color} />
+                        <View style={styles.itemContent}>
+                            <Text style={[styles.itemLabel, { color: theme.textSecondary }]}>Barometer</Text>
+                            <Text style={[styles.itemValue, { color: theme.text }]}>{pressureTrend.label}</Text>
+                        </View>
+                    </View>
+                )}
             </View>
 
             {analysis.reasons.length > 0 && (
