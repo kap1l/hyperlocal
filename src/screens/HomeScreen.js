@@ -18,6 +18,7 @@ import CitySearchModal from '../components/CitySearchModal';
 import BestTimeModal from '../components/BestTimeModal';
 import SpotChips from '../components/SpotChips';
 import WeeklyForecastCard from '../components/WeeklyForecastCard';
+import StreakBadge from '../components/StreakBadge';
 import { useWeather } from '../context/WeatherContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -32,8 +33,15 @@ import CollapsibleSection from '../components/CollapsibleSection';
 import MoonPhaseCard from '../components/MoonPhaseCard';
 import PollenCard from '../components/PollenCard';
 import ShareCard from '../components/ShareCard';
+import WatchlistCard from '../components/WatchlistCard';
+import LogSessionCard from '../components/LogSessionCard';
+import WeeklyReportCard from '../components/WeeklyReportCard';
+import ComparisonCard from '../components/ComparisonCard';
+import StravaInsightCard from '../components/StravaInsightCard';
+import HealthInsightCard from '../components/HealthInsightCard';
 import { analyzeActivitySafety, getSeverityOverride } from '../utils/weatherSafety';
 import { getCardOrder, DEFAULT_ORDER } from '../services/CardOrderService';
+import { getStreak } from '../services/StreakService';
 import { useIsFocused } from '@react-navigation/native';
 
 const HomeScreen = ({ navigation }) => {
@@ -48,11 +56,13 @@ const HomeScreen = ({ navigation }) => {
     const [fadeAnim] = useState(new Animated.Value(0));
     const [trialBannerDismissed, setTrialBannerDismissed] = useState(true);
     const [cardOrder, setCardOrder] = useState(DEFAULT_ORDER);
+    const [streak, setStreak] = useState({ count: 0, lastActiveDate: null });
     const isFocused = useIsFocused();
 
     useEffect(() => {
         if (isFocused) {
             getCardOrder().then(setCardOrder);
+            getStreak().then(setStreak);
         }
     }, [isFocused]);
 
@@ -198,15 +208,16 @@ const HomeScreen = ({ navigation }) => {
                                 <Text style={[styles.locationText, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
                                     {locationName || 'Current Location'}
                                 </Text>
-                                {isPro ? (
-                                    <Ionicons name="search-circle" size={24} color={theme.accent} style={styles.searchIcon} />
-                                ) : (
-                                    <Ionicons name="location" size={20} color={theme.accent} style={styles.searchIcon} />
-                                )}
-                            </TouchableOpacity>
+                                    {isPro ? (
+                                        <Ionicons name="search-circle" size={24} color={theme.accent} style={styles.searchIcon} />
+                                    ) : (
+                                        <Ionicons name="location" size={20} color={theme.accent} style={styles.searchIcon} />
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                            <StreakBadge streak={streak} />
                         </View>
-                    </View>
-                </Animated.View>
+                    </Animated.View>
 
                 <SpotChips onAddPress={() => {
                     if (!isPro) {
@@ -238,6 +249,20 @@ const HomeScreen = ({ navigation }) => {
                                 }}
                             />
                         </ShareCard>
+                        
+                        <WatchlistCard />
+                        <ComparisonCard />
+                        <WeeklyReportCard />
+                        <StravaInsightCard />
+                        {Platform.OS === 'android' && <HealthInsightCard />}
+                        <LogSessionCard />
+                        
+                        <TouchableOpacity 
+                            style={{ alignSelf: 'center', marginBottom: 20 }}
+                            onPress={() => navigation.navigate('Watchlist')}
+                        >
+                            <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Set Condition Alert +</Text>
+                        </TouchableOpacity>
 
                         {cardOrder.map(id => {
                             switch (id) {

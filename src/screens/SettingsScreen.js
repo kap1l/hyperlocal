@@ -14,6 +14,8 @@ import CitySearchModal from '../components/CitySearchModal';
 import GlassDropdown from '../components/GlassDropdown';
 import { useSubscription } from '../context/SubscriptionContext';
 import * as Sentry from '@sentry/react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { getBriefingTime, setBriefingTime } from '../services/StorageService';
 
 const SettingsScreen = ({ navigation }) => {
     const {
@@ -35,10 +37,20 @@ const SettingsScreen = ({ navigation }) => {
 
     const [locationInput, setLocationInput] = useState('');
     const [isGeocoding, setIsGeocoding] = useState(false);
+    const [briefingTime, setBriefingTimeState] = useState(new Date());
+    const [showTimePicker, setShowTimePicker] = useState(false);
 
     useEffect(() => {
         loadAlertsState();
+        loadBriefingTime();
     }, []);
+
+    const loadBriefingTime = async () => {
+        const { hour, minute } = await getBriefingTime();
+        const date = new Date();
+        date.setHours(hour, minute, 0, 0);
+        setBriefingTimeState(date);
+    };
 
     const loadAlertsState = async () => {
         const saved = await AsyncStorage.getItem('@alerts_enabled');
@@ -380,6 +392,27 @@ const SettingsScreen = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
+                {/* Condition Alerts */}
+                <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
+                    <TouchableOpacity
+                        style={[styles.row, { paddingVertical: 12 }]}
+                        onPress={() => navigation.navigate('Watchlist')}
+                    >
+                        <Text style={[styles.label, { color: theme.textSecondary, marginBottom: 0 }]}>Condition Alerts</Text>
+                        <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                    </TouchableOpacity>
+                    
+                    <View style={{ height: 1, backgroundColor: theme.glassBorder, marginVertical: 4 }} />
+                    
+                    <TouchableOpacity
+                        style={[styles.row, { paddingVertical: 12 }]}
+                        onPress={() => navigation.navigate('ActivityLog')}
+                    >
+                        <Text style={[styles.label, { color: theme.textSecondary, marginBottom: 0 }]}>Activity Log</Text>
+                        <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                    </TouchableOpacity>
+                </View>
+
                 {/* Saved Locations */}
                 {savedSpots?.length > 0 && (
                     <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
@@ -513,6 +546,44 @@ const SettingsScreen = ({ navigation }) => {
                             <Text style={[styles.testButtonText, { color: theme.accent }]}>Send Test Notification</Text>
                         )}
                     </TouchableOpacity>
+                </View>
+
+                {/* Morning Briefing Section */}
+                <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
+                    <Text style={[styles.label, { color: theme.textSecondary }]}>Morning Briefing</Text>
+                    <View style={styles.row}>
+                        <View>
+                            <Text style={{ fontSize: 16, color: theme.text, fontWeight: '600', marginBottom: 4 }}>Daily Forecast</Text>
+                            <Text style={{ fontSize: 12, color: theme.textSecondary }}>Get a score and summary each morning</Text>
+                        </View>
+                        <TouchableOpacity
+                            style={[styles.button, { backgroundColor: theme.accent + '20', paddingHorizontal: 16 }]}
+                            onPress={() => setShowTimePicker(true)}
+                        >
+                            <Text style={[styles.buttonText, { color: theme.accent }]}>
+                                {briefingTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                    
+                    {showTimePicker && (
+                        <DateTimePicker
+                            value={briefingTime}
+                            mode="time"
+                            display="default"
+                            onChange={async (event, selectedDate) => {
+                                setShowTimePicker(Platform.OS === 'ios');
+                                if (selectedDate) {
+                                    setBriefingTimeState(selectedDate);
+                                    await setBriefingTime(selectedDate.getHours(), selectedDate.getMinutes());
+                                    // re-register task which re-calls NotificationService via BackgroundWeatherTask 
+                                    if (alertsEnabled) {
+                                        await registerBackgroundWeatherTask();
+                                    }
+                                }
+                            }}
+                        />
+                    )}
                 </View>
 
                 <View style={[styles.section, { backgroundColor: theme.cardBg }]}>

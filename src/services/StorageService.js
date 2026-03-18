@@ -166,3 +166,23 @@ export const getPressureHistory = async () => {
     }
     return [];
 };
+
+export const setBriefingTime = async (hour, minute) => {
+    try {
+        await AsyncStorage.setItem('@briefing_time', JSON.stringify({ hour, minute }));
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to set briefing time", e);
+    }
+};
+
+export const getBriefingTime = async () => {
+    try {
+        const value = await AsyncStorage.getItem('@briefing_time');
+        return value ? JSON.parse(value) : { hour: 7, minute: 0 };
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to get briefing time", e);
+    }
+    return { hour: 7, minute: 0 };
+};

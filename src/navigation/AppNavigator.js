@@ -13,6 +13,9 @@ import HourlyScreen from '../screens/HourlyScreen';
 import AlertsScreen from '../screens/AlertsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import CardOrderScreen from '../screens/CardOrderScreen';
+import WatchlistScreen from '../screens/WatchlistScreen';
+import ActivityLogScreen from '../screens/ActivityLogScreen';
+import StravaConnectScreen from '../screens/StravaConnectScreen';
 
 const Tab = createMaterialTopTabNavigator();
 const Stack = createStackNavigator();
@@ -143,6 +146,9 @@ const AppNavigator = () => {
         <Stack.Navigator screenOptions={{ headerShown: false, presentation: 'modal' }}>
             <Stack.Screen name="MainTabs" component={TabNavigator} />
             <Stack.Screen name="CardOrder" component={CardOrderScreen} />
+            <Stack.Screen name="Watchlist" component={WatchlistScreen} />
+            <Stack.Screen name="ActivityLog" component={ActivityLogScreen} />
+            <Stack.Screen name="StravaConnect" component={StravaConnectScreen} />
         </Stack.Navigator>
     );
 };

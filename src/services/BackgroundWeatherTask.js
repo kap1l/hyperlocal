@@ -29,6 +29,8 @@ try {
 
 import { analyzeActivitySafety } from '../utils/weatherSafety';
 import { getSelectedActivity } from './StorageService';
+import { getWatchlist, markNotified, resetDailyNotified } from './WatchlistService';
+import { generateWeeklyReport } from './WeeklyReportService';
 import * as Sentry from '@sentry/react-native';
 
 export const checkWeatherAndNotify = async (isManual = false) => {
@@ -111,6 +113,16 @@ export const checkWeatherAndNotify = async (isManual = false) => {
         if (currentHour >= 6 && currentHour <= 10) {
             const lastReportDate = await AsyncStorage.getItem('@last_morning_report_date');
             if (lastReportDate !== todayStr || isManual) {
+                // Generate Weekly Report on Sundays
+                if (now.getDay() === 0) { // 0 = Sunday
+                    await generateWeeklyReport();
+                }
+
+                // Reset daily watchlist notification status on the first morning run
+                if (lastReportDate !== todayStr) {
+                    await resetDailyNotified();
+                }
+                
                 // Generate Report
                 const activityId = (await getSelectedActivity()) || 'walk';
                 const hourly = data.hourly?.data || [];
@@ -218,6 +230,39 @@ export const checkWeatherAndNotify = async (isManual = false) => {
                 const hour = new Date().getHours();
                 if (hour >= 7 && hour <= 10) {
                     alertMessage = `🌤️ Perfect morning! ${Math.round(temperature)}° and calm. Great for outdoor activities!`;
+                }
+            }
+
+            // --- Watchlist Processing ---
+            const watches = await getWatchlist();
+            for (const watch of watches) {
+                if (watch.notifiedToday && watch.lastNotifiedDate === todayStr) continue;
+
+                let triggered = false;
+                let watchMsg = '';
+
+                if (watch.type === 'score_above') {
+                    const safety = analyzeActivitySafety(watch.activity, data.currently, units);
+                    if (safety && safety.score >= watch.threshold) {
+                        triggered = true;
+                        watchMsg = `🌟 Conditions hit ${safety.score}/100 for ${watch.activity}!`;
+                    }
+                } else if (watch.type === 'rain_stop') {
+                    if (wasRaining && !isRaining) {
+                        triggered = true;
+                        watchMsg = `🛑 Rain stopped! Good time for a ${watch.activity}.`;
+                    }
+                } else if (watch.type === 'rain_start') {
+                    if (!wasRaining && isRaining) {
+                        triggered = true;
+                        watchMsg = `☔ Rain starting. Heads up for your ${watch.activity}.`;
+                    }
+                }
+
+                if (triggered) {
+                    alertMessage = watchMsg;
+                    await markNotified(watch.id);
+                    break; // Only send one watch alert at a time to avoid spam
                 }
             }
         }

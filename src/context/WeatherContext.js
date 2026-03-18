@@ -17,10 +17,12 @@ import {
     getPressureHistory
 } from '../services/StorageService';
 import { getSpots, addSpot as addSpotToStorage, removeSpot as removeSpotFromStorage } from '../services/SpotService';
+import { incrementStreak } from '../services/StreakService';
 import { fetchWarnings } from '../services/WeatherWarningService';
 import { updateWidgetData } from '../services/WidgetService';
 import NetInfo from '@react-native-community/netinfo';
 import * as Sentry from '@sentry/react-native';
+import { saveDailyWeatherSnapshot } from '../services/HistoricalWeatherService'; // Added this import
 
 const WeatherContext = createContext();
 
@@ -159,6 +161,7 @@ export const WeatherProvider = ({ children }) => {
             setLastUpdated(Date.now());
             await saveWeatherData(data);
             updateWidgetData(data, selectedActivity || 'walk', units);
+            await incrementStreak();
         } catch (e) {
         Sentry.captureException(e);
             setError(e.message);

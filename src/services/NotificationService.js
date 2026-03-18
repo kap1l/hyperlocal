@@ -3,7 +3,8 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { fetchWeather } from './WeatherService';
 import { getCurrentLocation } from './LocationService';
-import { getApiKey, getUnits, getSelectedActivity } from './StorageService';
+import { getApiKey, getUnits, getSelectedActivity, getBriefingTime } from './StorageService';
+import { analyzeActivitySafety } from '../utils/weatherSafety';
 import { generateDailySummary } from './SmartSummaryService';
 import * as Sentry from '@sentry/react-native';
 
@@ -79,42 +80,48 @@ export const scheduleDailyBriefing = async (weatherData, activity) => {
             weatherData = await fetchWeather(apiKey, location.latitude, location.longitude, units);
         }
 
-        const summary = generateDailySummary(weatherData, activity);
-        if (summary) {
-            summaryBody = summary.length > 100 ? summary.substring(0, 97) + '...' : summary;
+        const safety = analyzeActivitySafety(activity, weatherData.currently, await getUnits() || 'us');
+        
+        if (safety) {
+            const score = safety.score;
+            if (score >= 80) {
+                summaryTitle = `🏃 Great ${activity} conditions today`;
+            } else if (score >= 60) {
+                summaryTitle = `👍 Decent ${activity} window today`;
+            } else {
+                summaryTitle = `⚠️ Tough day for ${activity}`;
+            }
+            
+            // NOTE: the exact 'startTime'/'endTime' isn't explicitly calculated in standard 'analyzeActivitySafety' without hourly,
+            // so we will construct a good summary with the available data 
+            const temp = Math.round(weatherData.currently.temperature);
+            summaryBody = `Score: ${score}/100. ${temp}°, ${weatherData.currently.summary || 'mild'}. ${safety.advice}`;
         }
 
-        // Logic to cap title dynamically
-        // Note: checking best windows might require weatherSafety logic which isn't imported here,
-        // so we'll use a simplified check based on data available in weatherData
-        const isGoodDay = weatherData.daily?.data?.[0]?.precipProbability < 0.2;
-        const isBadDay = weatherData.daily?.data?.[0]?.precipProbability > 0.8;
-        
-        if (isGoodDay) {
-            summaryTitle = "🏃 Best window found for today";
-        } else if (isBadDay) {
-             summaryTitle = "⚠️ Tough conditions today";
-        } 
-        
+        if (summaryBody.length > 100) {
+            summaryBody = summaryBody.substring(0, 97) + '...';
+        }
+
+        const { hour, minute } = await getBriefingTime();
+
+        await Notifications.cancelAllScheduledNotificationsAsync();
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: summaryTitle,
+                body: summaryBody,
+                sound: true,
+            },
+            trigger: {
+                hour: hour,
+                minute: minute,
+                repeats: true,
+            },
+        });
     } catch (e) {
         Sentry.captureException(e);
         console.log('Failed to generate dynamic daily summary for notification', e);
     }
-
-    await Notifications.cancelAllScheduledNotificationsAsync();
-
-    await Notifications.scheduleNotificationAsync({
-        content: {
-            title: summaryTitle,
-            body: summaryBody,
-            sound: true,
-        },
-        trigger: {
-            hour: 8,
-            minute: 0,
-            repeats: true,
-        },
-    });
 };
 
 /**
@@ -133,6 +140,23 @@ export const triggerSevereWeatherNotification = async (alert) => {
             title: `⚠️ ${alert.title}`,
             body: alert.description || "Severe weather warning in your area.",
             data: { data: alert },
+            sound: true,
+        },
+        trigger: null, // Immediate
+    });
+};
+
+export const scheduleMilestoneNotification = async (count) => {
+    // Skip entirely in Expo Go
+    if (isExpoGo) {
+        console.log('Skipping milestone notification (Expo Go)');
+        return;
+    }
+
+    await Notifications.scheduleNotificationAsync({
+        content: {
+            title: `🔥 ${count}-Day Streak!`,
+            body: `You've checked OutWeather ${count} days in a row. Keep it up!`,
             sound: true,
         },
         trigger: null, // Immediate

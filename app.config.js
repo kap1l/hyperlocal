@@ -51,6 +51,9 @@ export default {
         'NOTIFICATIONS',
         'android.permission.ACCESS_COARSE_LOCATION',
         'android.permission.ACCESS_FINE_LOCATION',
+        'android.permission.health.READ_STEPS',
+        'android.permission.health.READ_DISTANCE',
+        'android.permission.health.READ_TOTAL_CALORIES_BURNED'
       ],
     },
     web: {
@@ -62,6 +65,7 @@ export default {
       'expo-notifications',
       'expo-location',
       'expo-secure-store',
+      '@react-native-community/datetimepicker',
       // Google Mobile Ads — must appear before the build runs native config
       [
         'react-native-google-mobile-ads',
