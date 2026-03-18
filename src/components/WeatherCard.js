@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { getSeverityOverride } from '../utils/weatherSafety';
+import * as Haptics from 'expo-haptics';
 
 const WeatherCard = ({ currently, dailyData }) => {
     const { theme } = useTheme();
@@ -34,13 +35,18 @@ const WeatherCard = ({ currently, dailyData }) => {
 
             <TouchableOpacity 
                 activeOpacity={0.7} 
-                onPress={() => setShowFeelsLike(p => !p)}
+                onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowFeelsLike(p => !p);
+                }}
                 style={{ alignItems: 'center', marginBottom: 4 }}
             >
                 <Text style={[styles.temp, { color: theme.text }]}>{Math.round(displayTemp)}°</Text>
-                <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: -8, textTransform: 'uppercase', letterSpacing: 1, fontWeight: '600' }}>
-                    {showFeelsLike ? 'feels like' : 'actual'}
-                </Text>
+                {apparentTemperature !== undefined && (
+                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: -8, textTransform: 'uppercase', letterSpacing: 1, fontWeight: '600' }}>
+                        {showFeelsLike ? 'feels like' : 'actual'}
+                    </Text>
+                )}
             </TouchableOpacity>
 
             <View style={styles.sunRow}>

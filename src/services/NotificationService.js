@@ -6,6 +6,7 @@ import { getCurrentLocation } from './LocationService';
 import { getApiKey, getUnits, getSelectedActivity, getBriefingTime } from './StorageService';
 import { analyzeActivitySafety } from '../utils/weatherSafety';
 import { generateDailySummary } from './SmartSummaryService';
+import { generateWeeklyReport } from './WeeklyReportService';
 import * as Sentry from '@sentry/react-native';
 
 const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
@@ -161,4 +162,33 @@ export const scheduleMilestoneNotification = async (count) => {
         },
         trigger: null, // Immediate
     });
+};
+
+export const scheduleWeeklyReportNotification = async () => {
+    if (isExpoGo) {
+        console.log('Skipping weekly report notification (Expo Go)');
+        return;
+    }
+
+    try {
+        const report = await generateWeeklyReport();
+        if (report && report.sessionCount > 0) {
+            await Notifications.scheduleNotificationAsync({
+                content: {
+                    title: "📊 Your Weekly Outdoor Report is Ready",
+                    body: `You logged ${report.sessionCount} sessions this week. Tap to see your top activity!`,
+                    sound: true,
+                },
+                trigger: {
+                    weekday: 1, // Sunday
+                    hour: 18,   // 6 PM
+                    minute: 0,
+                    repeats: true,
+                },
+            });
+        }
+    } catch (e) {
+        Sentry.captureException(e);
+        console.log('Failed to schedule weekly report notification', e);
+    }
 };

@@ -42,6 +42,8 @@ import HealthInsightCard from '../components/HealthInsightCard';
 import { analyzeActivitySafety, getSeverityOverride } from '../utils/weatherSafety';
 import { getCardOrder, DEFAULT_ORDER } from '../services/CardOrderService';
 import { getStreak } from '../services/StreakService';
+import { addLog, getWeeklySummary } from '../services/ActivityLogService';
+import WeeklyLogSummary from '../components/WeeklyLogSummary';
 import { useIsFocused } from '@react-navigation/native';
 
 const HomeScreen = ({ navigation }) => {
@@ -57,12 +59,14 @@ const HomeScreen = ({ navigation }) => {
     const [trialBannerDismissed, setTrialBannerDismissed] = useState(true);
     const [cardOrder, setCardOrder] = useState(DEFAULT_ORDER);
     const [streak, setStreak] = useState({ count: 0, lastActiveDate: null });
+    const [weeklySummary, setWeeklySummary] = useState(null);
     const isFocused = useIsFocused();
 
     useEffect(() => {
         if (isFocused) {
             getCardOrder().then(setCardOrder);
             getStreak().then(setStreak);
+            getWeeklySummary().then(setWeeklySummary);
         }
     }, [isFocused]);
 
@@ -250,12 +254,36 @@ const HomeScreen = ({ navigation }) => {
                             />
                         </ShareCard>
                         
+                        <TouchableOpacity 
+                            style={[
+                                styles.logButton, 
+                                { backgroundColor: activityAnalysis.safetyScore >= 70 ? theme.accent : theme.textSecondary }
+                            ]}
+                            onPress={async () => {
+                                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                await addLog({
+                                    id: Date.now().toString(),
+                                    timestamp: Date.now(),
+                                    activity: selectedActivity || 'walk',
+                                    score: activityAnalysis.safetyScore,
+                                    conditions: weather.currently.icon,
+                                    temperature: weather.currently.temperature
+                                });
+                                Alert.alert("Session Logged!", `Your ${selectedActivity || 'walk'} session has been logged in Activity History.`);
+                                getWeeklySummary().then(setWeeklySummary);
+                            }}
+                        >
+                            <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                            <Text style={styles.logButtonText}>Log this session</Text>
+                        </TouchableOpacity>
+                        
                         <WatchlistCard />
                         <ComparisonCard />
                         <WeeklyReportCard />
                         <StravaInsightCard />
                         {Platform.OS === 'android' && <HealthInsightCard />}
                         <LogSessionCard />
+                        <WeeklyLogSummary summary={weeklySummary} />
                         
                         <TouchableOpacity 
                             style={{ alignSelf: 'center', marginBottom: 20 }}
@@ -465,6 +493,25 @@ const styles = StyleSheet.create({
     },
     trialCloseBtn: {
         padding: 4,
+    },
+    logButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginHorizontal: 20,
+        marginBottom: 20,
+        paddingVertical: 14,
+        borderRadius: 12,
+        gap: 8,
+        shadowColor: '#000',
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+        elevation: 3,
+    },
+    logButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 16,
     }
 });
 

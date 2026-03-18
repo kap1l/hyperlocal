@@ -1,17 +1,30 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getActivityLog } from './ActivityLogService';
+import { getLogs } from './ActivityLogService';
+import { getWeeklyReport, saveWeeklyReport, hasSeenWeeklyReport, markWeeklyReportSeen } from './StorageService';
 import * as Sentry from '@sentry/react-native';
 
-const WEEKLY_REPORT_KEY = '@weekly_score_report';
+const getWeekIdentifier = (date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+    const yearStart = new Date(d.getFullYear(), 0, 1);
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return `${d.getFullYear()}_W${weekNo}`;
+};
 
 export const generateWeeklyReport = async () => {
     try {
-        const logs = await getActivityLog();
         const now = new Date();
+        const currentWeekId = getWeekIdentifier(now);
+        
+        // Check if we already have a report for this week
+        const existingReport = await getWeeklyReport(currentWeekId);
+        if (existingReport) return existingReport;
+
+        const logs = await getLogs();
         const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
         // Filter activities from last 7 days
-        const recentLogs = logs.filter(log => new Date(log.date) >= sevenDaysAgo);
+        const recentLogs = logs.filter(log => new Date(log.timestamp) >= sevenDaysAgo);
 
         if (recentLogs.length === 0) return null;
 
@@ -37,13 +50,14 @@ export const generateWeeklyReport = async () => {
         const report = {
             id: Date.now().toString(),
             generatedAt: now.toISOString(),
+            weekId: currentWeekId,
             totalDuration,
             totalDistance,
             sessionCount: recentLogs.length,
             topActivity
         };
 
-        await AsyncStorage.setItem(WEEKLY_REPORT_KEY, JSON.stringify(report));
+        await saveWeeklyReport(currentWeekId, report);
         return report;
     } catch (e) {
         Sentry.captureException(e);
@@ -54,11 +68,21 @@ export const generateWeeklyReport = async () => {
 
 export const getLatestWeeklyReport = async () => {
     try {
-        const json = await AsyncStorage.getItem(WEEKLY_REPORT_KEY);
-        if (json) return JSON.parse(json);
+        const currentWeekId = getWeekIdentifier(new Date());
+        return await getWeeklyReport(currentWeekId);
     } catch (e) {
         Sentry.captureException(e);
         console.error("Failed to get weekly report", e);
     }
     return null;
+};
+
+export const markReportAsSeen = async () => {
+    try {
+        const currentWeekId = getWeekIdentifier(new Date());
+        await markWeeklyReportSeen(currentWeekId);
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to mark weekly report as seen", e);
+    }
 };

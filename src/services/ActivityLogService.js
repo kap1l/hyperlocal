@@ -1,44 +1,60 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Sentry from '@sentry/react-native';
+import { getActivityLogs, saveActivityLogs } from './StorageService';
 
-const ACTIVITY_LOG_KEY = '@activity_history_log';
-
-export const getActivityLog = async () => {
+export const getLogs = async () => {
     try {
-        const json = await AsyncStorage.getItem(ACTIVITY_LOG_KEY);
-        if (json) return JSON.parse(json);
+        return await getActivityLogs();
     } catch (e) {
         Sentry.captureException(e);
         console.error("Failed to get activity log", e);
+        return [];
     }
-    return [];
 };
 
-export const logActivitySession = async (session) => {
+export const addLog = async (entry) => {
     try {
-        const current = await getActivityLog();
-        const newSession = {
-            id: Date.now().toString(),
-            date: new Date().toISOString(),
-            ...session
-        };
-        const updated = [newSession, ...current];
-        await AsyncStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(updated));
+        const current = await getActivityLogs();
+        const updated = [entry, ...current].slice(0, 200); // cap at 200
+        await saveActivityLogs(updated);
         return updated;
     } catch (e) {
         Sentry.captureException(e);
-        console.error("Failed to log activity session", e);
+        console.error("Failed to add log", e);
     }
 };
 
-export const deleteActivitySession = async (id) => {
+export const deleteLog = async (id) => {
     try {
-        const current = await getActivityLog();
+        const current = await getActivityLogs();
         const updated = current.filter(s => s.id !== id);
-        await AsyncStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(updated));
+        await saveActivityLogs(updated);
         return updated;
     } catch (e) {
         Sentry.captureException(e);
-        console.error("Failed to delete activity session", e);
+        console.error("Failed to delete log", e);
+    }
+};
+
+export const getWeeklySummary = async () => {
+    try {
+        const logs = await getActivityLogs();
+        const oneWeekAgo = Date.now() - 604800000;
+        const validLogs = logs.filter(l => l.timestamp >= oneWeekAgo);
+
+        if (validLogs.length === 0) return null;
+
+        const sum = validLogs.reduce((acc, l) => acc + l.score, 0);
+        const avgScore = Math.round(sum / validLogs.length);
+
+        const bestLog = validLogs.reduce((prev, current) => (prev.score > current.score) ? prev : current);
+        const bestDay = new Date(bestLog.timestamp).toLocaleDateString([], { weekday: 'long' });
+
+        const activities = [...new Set(validLogs.map(l => l.activity))];
+
+        return { count: validLogs.length, avgScore, bestDay, activities };
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to get weekly summary", e);
+        return null;
     }
 };

@@ -186,3 +186,63 @@ export const getBriefingTime = async () => {
     }
     return { hour: 7, minute: 0 };
 };
+
+export const getActivityLogs = async () => {
+    try {
+        const value = await AsyncStorage.getItem('@activity_log');
+        return value ? JSON.parse(value) : [];
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to get activity logs", e);
+    }
+    return [];
+};
+
+export const saveActivityLogs = async (logs) => {
+    try {
+        await AsyncStorage.setItem('@activity_log', JSON.stringify(logs));
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to save activity logs", e);
+    }
+};
+
+export const getWeeklyReport = async (weekNumber) => {
+    try {
+        const value = await AsyncStorage.getItem(`@weekly_report_${weekNumber}`);
+        return value ? JSON.parse(value) : null;
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to get weekly report", e);
+    }
+    return null;
+};
+
+export const saveWeeklyReport = async (weekNumber, report) => {
+    try {
+        await AsyncStorage.setItem(`@weekly_report_${weekNumber}`, JSON.stringify(report));
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to save weekly report", e);
+    }
+};
+
+export const hasSeenWeeklyReport = async (weekNumber) => {
+    try {
+        const value = await AsyncStorage.getItem(`@weekly_report_seen_${weekNumber}`);
+        return value === 'true';
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to check if weekly report seen", e);
+    }
+    return false;
+};
+
+export const markWeeklyReportSeen = async (weekNumber) => {
+    try {
+        await AsyncStorage.setItem(`@weekly_report_seen_${weekNumber}`, 'true');
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to mark weekly report as seen", e);
+    }
+};

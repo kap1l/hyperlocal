@@ -11,6 +11,7 @@ import { ThemeProvider } from './src/context/ThemeContext';
 import { SubscriptionProvider } from './src/context/SubscriptionContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { logAppOpenForReview } from './src/services/AppReviewService';
+import { scheduleWeeklyReportNotification } from './src/services/NotificationService';
 
 Sentry.init({
   dsn: 'YOUR_SENTRY_DSN_HERE', // TODO: replace with your real Sentry DSN
@@ -82,6 +83,9 @@ const AppContent = () => {
             
             // Trigger app review logic
             logAppOpenForReview();
+            
+            // Setup weekly report push notification schedule
+            await scheduleWeeklyReportNotification();
         }
         setupMobile();
     }, []);

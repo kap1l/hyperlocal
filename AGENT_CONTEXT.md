@@ -84,8 +84,6 @@ Do not rename or re-register — modifying task registration will break existing
 ## Known Deferred Work
 - iOS widget (WidgetKit/SwiftUI) — not started
 - Garmin Connect — pending API approval
-- Feels-like temperature toggle on HomeScreen — not yet built
-- Activity history log — scoped for v1.2
 ```
 
 ---

@@ -106,3 +106,120 @@ getConditionTolerance(sessions): analyse enriched sessions to determine user's a
 Create HealthInsightCard.js: renders personalised insight derived from getConditionTolerance(). Example: "You typically go out when conditions score 65+. Today's score: 78 — above your usual threshold." Only render when sessions.length >= 5. Show source attribution: "Via Health Connect".
 In SettingsScreen.js, add "Health Connect" row in "Connected Apps" section. On press check isAvailable() — if false show Alert "Health Connect requires Android 14 or newer.". If true and not connected, call requestPermissions(). If connected, show permission status and a disconnect option.
 In HomeScreen.js, render <HealthInsightCard /> below StravaInsightCard. Only render when Health Connect is authorised and sufficient data exists.
+
+**OutWeather — Pending Tasks for Agent (v1.1.0)**
+
+Read `AGENT_CONTEXT.md` before writing any code. All rules in that file are non-negotiable.
+
+---
+
+**TASK — Feels-Like Temperature Toggle**
+
+Files to modify: `src/components/WeatherCard.js`
+
+1. Add state `const [showFeelsLike, setShowFeelsLike] = useState(false)` inside `WeatherCard`.
+2. Locate the primary temperature display element. Wrap it in a `TouchableOpacity` with `onPress={() => setShowFeelsLike(prev => !prev)}` and `activeOpacity={0.7}`.
+3. When `showFeelsLike` is false, display `weather.currently.temperature`. When true, display `weather.currently.apparentTemperature`. Both values are already available in the component via WeatherContext.
+4. Directly below the temperature value, render a sub-label `Text` component. Show `"feels like"` when `showFeelsLike` is true, `"actual"` when false. Style with `theme.textSecondary`, `fontSize: 11`, `textAlign: 'center'`.
+5. On toggle, call `Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)` from `expo-haptics`.
+6. Handle null — if `weather?.currently?.apparentTemperature` is undefined, do not render the toggle and fall back to displaying actual temperature only with no sub-label.
+
+---
+
+**TASK — Activity History Log**
+
+Files to create: `src/services/ActivityLogService.js`, `src/screens/ActivityLogScreen.js`, `src/components/LogSessionCard.js`, `src/components/WeeklyLogSummary.js`
+Files to modify: `src/screens/HomeScreen.js`, `src/navigation/AppNavigator.js`, `src/screens/SettingsScreen.js`, `src/services/StorageService.js`
+
+1. In `StorageService.js`, add two helpers: `getActivityLogs()` reads `@activity_log` from AsyncStorage, returns parsed array or `[]`. `saveActivityLogs(logs)` writes array to `@activity_log`.
+
+2. In `ActivityLogService.js`, define log entry shape:
+```
+{
+  id: string,           // Date.now().toString()
+  timestamp: number,    // unix ms
+  activity: string,
+  score: number,
+  temperature: number,
+  conditions: string,   // weather.currently.summary
+  precipProbability: number,
+  windSpeed: number,
+  note: null
+}
+```
+Implement:
+- `getLogs()` calls `getActivityLogs()`, returns array.
+- `addLog(entry)` reads current logs, prepends new entry, caps at 200 entries using `.slice(0, 200)`, writes back via `saveActivityLogs()`.
+- `deleteLog(id)` filters out by id, writes back.
+- `getWeeklySummary()` filters logs where `timestamp >= Date.now() - 604800000`. Returns `{ count: number, avgScore: number, bestDay: string|null, activities: string[] }`. `bestDay` is the `toLocaleDateString([], { weekday: 'long' })` of the highest-scored session. Returns `null` if no logs in range.
+- Wrap all operations in try/catch with `Sentry.captureException`.
+
+3. In `HomeScreen.js`:
+   - Import `ActivityLogService` and `useSubscription`.
+   - Below `FeaturedActivityBadge`, add a `TouchableOpacity` styled as a small pill button labelled `"+ Log this session"`.
+   - On press, construct a log entry from `weather.currently`, `selectedActivity`, and `activityAnalysis.score`. Call `ActivityLogService.addLog(entry)`. Fire `Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)`. Show no modal — in-place confirmation only.
+   - Load weekly summary via `getWeeklySummary()` in a `useEffect` into local state `weeklySummary`.
+   - Render `<WeeklyLogSummary summary={weeklySummary} />` after `DailyOutlookCard`. Only render when `weeklySummary?.count > 0`.
+
+4. In `WeeklyLogSummary.js`, accept prop `summary`. Wrap in existing `CollapsibleSection` with `title="This Week's Activity"` and `sectionId="weekly-log"`. Inside, render three stats in a horizontal row: session count with label `"Sessions"`, `avgScore` as a coloured pill (score colour rules from AGENT_CONTEXT), `bestDay` with label `"Best day"`. If `bestDay` is null render `"—"`.
+
+5. In `LogSessionCard.js`, accept prop `entry`. Render a single row: activity icon (`Ionicons`), date/time formatted as `"Mon 14 Mar, 9:41 AM"`, score badge (coloured circle with score number), temperature, conditions summary. Add a `TouchableOpacity` trash icon on the right calling `onDelete(entry.id)` prop. Use `theme.cardBg` background, `borderRadius: 12`, `marginBottom: 8`.
+
+6. In `ActivityLogScreen.js`:
+   - Load logs via `getLogs()` on mount into state.
+   - Render a `FlatList` of `LogSessionCard` components. Pass `onDelete` prop that calls `deleteLog(id)` and updates local state.
+   - Header shows total session count: `"${logs.length} sessions logged"`.
+   - Empty state: centred text `"Tap '+ Log this session' on the home screen after checking conditions."` with a subtle icon.
+   - Add a `"Clear All"` button in the header right that shows a confirmation `Alert` before calling `saveActivityLogs([])`.
+
+7. In `AppNavigator.js`, register `ActivityLogScreen` in the stack navigator.
+
+8. In `SettingsScreen.js`, add `"Activity History"` row in a `"Data"` section. On press navigate to `ActivityLogScreen`. Show session count as subtitle — load it from `getLogs().length` on screen focus.
+
+---
+
+**TASK — Weekly Outdoor Report**
+
+Files to create: `src/services/WeeklyReportService.js`, `src/components/WeeklyReportCard.js`
+Files to modify: `src/services/NotificationService.js`, `src/screens/HomeScreen.js`, `src/services/StorageService.js`
+
+1. In `StorageService.js`, add: `getWeeklyReport(weekNumber)` reads `@weekly_report_${weekNumber}`. `saveWeeklyReport(weekNumber, report)` writes same. `hasSeenWeeklyReport(weekNumber)` reads `@weekly_report_seen_${weekNumber}`, returns bool. `markWeeklyReportSeen(weekNumber)` writes `'true'` to same key.
+
+2. In `WeeklyReportService.js`:
+   - `getWeekNumber()` returns `Math.floor(Date.now() / 604800000)`.
+   - `generateWeeklyReport(activityLogs, dailyForecast, activity)`:
+     - Filter `activityLogs` to last 7 days.
+     - Compute `sessionCount`, `avgScore` (average of log scores, rounded).
+     - Find `bestDayLabel` — day name of highest scored log entry. Null if no logs.
+     - Find `upcomingBestDay` from `dailyForecast` — day with highest activity score computed via `analyzeActivitySafety(activity, dayProxy, units)`. Return `{ dayLabel, score }`.
+     - Return full report object: `{ weekNumber, sessionCount, avgScore, bestDayLabel, upcomingBestDay: { label, score }, generatedAt: Date.now() }`.
+     - Save via `saveWeeklyReport(weekNumber, report)`.
+   - `shouldShowReport()` — returns true if current day is Monday (new week), report exists for previous week (`weekNumber - 1`), and `hasSeenWeeklyReport(weekNumber - 1)` is false.
+   - Wrap in try/catch with Sentry.
+
+3. In `NotificationService.js`, add `scheduleWeeklyReportNotification()`. Schedule for Sunday at 18:00 repeating weekly (`trigger: { weekday: 1, hour: 18, minute: 0, repeats: true }` — note: `weekday: 1` is Sunday in Expo's trigger spec). Title: `"📊 Your OutWeather week is ready"`. Body: `"See how your outdoor conditions looked this week and what's coming up."`. Only schedule if not already scheduled — check via `Notifications.getAllScheduledNotificationsAsync()` and skip if a notification with matching title exists.
+
+4. In `WeeklyReportCard.js`:
+   - Accept props `report` and `onDismiss`.
+   - Render as a full-width card with `theme.cardBg` background and `theme.accent` left border.
+   - Header: `"📊 Your Week in Review"` with a dismiss X `TouchableOpacity` calling `onDismiss`.
+   - Section 1 `"Last Week"`: show `sessionCount` sessions, `avgScore` as coloured pill, `bestDayLabel` as `"Best day: ${bestDayLabel}"` or `"No sessions logged"` if null.
+   - Section 2 `"Coming Up"`: show `upcomingBestDay.label` and `upcomingBestDay.score` as `"Best day ahead: ${label} (${score}/100)"`.
+   - If `sessionCount === 0`, replace section 1 with `"No sessions logged last week. Tap '+ Log this session' to start tracking."`.
+   - Style with `marginHorizontal: 16`, `marginBottom: 8`, `padding: 16`, `borderRadius: 16`.
+
+5. In `HomeScreen.js`:
+   - On mount, call `WeeklyReportService.shouldShowReport()`. If true, call `generateWeeklyReport()` with logs from `ActivityLogService` and `weather?.daily?.data` and `selectedActivity`. Store in local state `weeklyReport`.
+   - Render `<WeeklyReportCard report={weeklyReport} onDismiss={handleDismissReport} />` at the top of the scroll content, below the trial banner and above all other cards. Only render when `weeklyReport !== null`.
+   - `handleDismissReport` calls `markWeeklyReportSeen(weeklyReport.weekNumber)` and sets `weeklyReport` to null.
+
+6. In `App.js`, call `scheduleWeeklyReportNotification()` once after notification permissions are confirmed granted. Add a guard so it only runs in production (`!__DEV__`).
+
+---
+
+**After agent completes, update `AGENT_CONTEXT.md` CHANGELOG section:**
+
+Move these three items from `PENDING` to `COMPLETED` under 1.1.0:
+- Feels-like temperature toggle (WeatherCard.js)
+- ActivityLogService + ActivityLogScreen + LogSessionCard + WeeklyLogSummary
+- WeeklyReportService + WeeklyReportCard

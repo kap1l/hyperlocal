@@ -16,7 +16,7 @@ export default function WeeklyReportCard() {
         }
     }, [isFocused]);
 
-    if (!report) return null;
+    if (!report || report.sessionCount === 0) return null;
 
     const dateStr = new Date(report.generatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
 
