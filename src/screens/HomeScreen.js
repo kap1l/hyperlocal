@@ -313,7 +313,7 @@ const HomeScreen = ({ navigation }) => {
                                         <View key={id}>
                                             <SmartSummaryCard weather={weather} activity={selectedActivity} />
                                             <ConditionComparisonCard 
-                                                currentScore={activityAnalysis?.safetyScore} 
+                                                currentScore={activityAnalysis?.score} 
                                                 currentTemp={weather?.currently?.temperature} 
                                                 currentConditions={weather?.currently?.summary} 
                                             />
