@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/react-native';
 import { getActivityLogs, saveActivityLogs } from './StorageService';
+import { getGoal, logGoalSession } from './GoalService';
 
 export const getLogs = async () => {
     try {
@@ -16,6 +17,13 @@ export const addLog = async (entry) => {
         const current = await getActivityLogs();
         const updated = [entry, ...current].slice(0, 200); // cap at 200
         await saveActivityLogs(updated);
+
+        // Check against active goals
+        const goal = await getGoal();
+        if (goal && goal.activity === entry.activity) {
+            await logGoalSession();
+        }
+
         return updated;
     } catch (e) {
         Sentry.captureException(e);

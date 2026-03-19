@@ -44,10 +44,13 @@ import { getCardOrder, DEFAULT_ORDER } from '../services/CardOrderService';
 import { getStreak } from '../services/StreakService';
 import { addLog, getWeeklySummary } from '../services/ActivityLogService';
 import WeeklyLogSummary from '../components/WeeklyLogSummary';
+import ConditionComparisonCard from '../components/ConditionComparisonCard';
+import GoalProgressCard from '../components/GoalProgressCard';
+import ForecastConfidenceChip from '../components/ForecastConfidenceChip';
 import { useIsFocused } from '@react-navigation/native';
 
 const HomeScreen = ({ navigation }) => {
-    const { weather, loading, error, refreshWeather, apiKey, locationName, setLocationConfig, isOffline, lastUpdated, weatherWarnings } = useWeather();
+    const { weather, loading, error, refreshWeather, apiKey, locationName, setLocationConfig, isOffline, lastUpdated, weatherWarnings, forecastConfidence } = useWeather();
     const { theme } = useTheme();
     const { selectedActivity, units, addSpot } = useWeather();
     const { isPro, isTrialing, trialDaysLeft, purchasePro } = useSubscription(); // Now uses the safe mock context
@@ -242,6 +245,8 @@ const HomeScreen = ({ navigation }) => {
                             currently={weather.currently}
                             dailyData={weather.daily?.data}
                         />
+                        
+                        <ForecastConfidenceChip confidence={forecastConfidence} />
 
                         <ShareCard>
                             <ExtendedActivityCard
@@ -284,8 +289,9 @@ const HomeScreen = ({ navigation }) => {
                         {Platform.OS === 'android' && <HealthInsightCard />}
                         <LogSessionCard />
                         <WeeklyLogSummary summary={weeklySummary} />
+                        <GoalProgressCard dailyData={weather?.daily?.data} units={units} />
                         
-                        <TouchableOpacity 
+                        <TouchableOpacity  
                             style={{ alignSelf: 'center', marginBottom: 20 }}
                             onPress={() => navigation.navigate('Watchlist')}
                         >
@@ -295,7 +301,16 @@ const HomeScreen = ({ navigation }) => {
                         {cardOrder.map(id => {
                             switch (id) {
                                 case 'smart-summary':
-                                    return <SmartSummaryCard key={id} weather={weather} activity={selectedActivity} />;
+                                    return (
+                                        <View key={id}>
+                                            <SmartSummaryCard weather={weather} activity={selectedActivity} />
+                                            <ConditionComparisonCard 
+                                                currentScore={activityAnalysis?.safetyScore} 
+                                                currentTemp={weather?.currently?.temperature} 
+                                                currentConditions={weather?.currently?.summary} 
+                                            />
+                                        </View>
+                                    );
                                 case 'activity-hub':
                                     return (
                                         <CollapsibleSection key={id} title="Activity Overview" icon="fitness-outline" sectionId="activity-hub" accentColor="#22c55e">

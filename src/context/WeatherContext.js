@@ -14,7 +14,8 @@ import {
     saveSelectedActivity as saveActivityToStorage,
     saveLastKnownLocation,
     savePressureHistory,
-    getPressureHistory
+    getPressureHistory,
+    saveWeatherSnapshot
 } from '../services/StorageService';
 import { getSpots, addSpot as addSpotToStorage, removeSpot as removeSpotFromStorage } from '../services/SpotService';
 import { incrementStreak } from '../services/StreakService';
@@ -22,7 +23,8 @@ import { fetchWarnings } from '../services/WeatherWarningService';
 import { updateWidgetData } from '../services/WidgetService';
 import NetInfo from '@react-native-community/netinfo';
 import * as Sentry from '@sentry/react-native';
-import { saveDailyWeatherSnapshot } from '../services/HistoricalWeatherService'; // Added this import
+import { analyzeActivitySafety } from '../utils/weatherSafety';
+import { saveDailyWeatherSnapshot } from '../services/HistoricalWeatherService';
 
 const WeatherContext = createContext();
 
@@ -44,6 +46,7 @@ export const WeatherProvider = ({ children }) => {
     const [savedSpots, setSavedSpots] = useState([]);
     const [pressureHistory, setPressureHistory] = useState([]);
     const [weatherWarnings, setWeatherWarnings] = useState([]);
+    const [forecastConfidence, setForecastConfidence] = useState('medium');
 
     // Cache the last successfully resolved coordinates so a units-change re-fetch
     // can skip the GPS step and use them directly.
@@ -143,6 +146,9 @@ export const WeatherProvider = ({ children }) => {
             // apiKey may be null — WeatherService will fall back to Open-Meteo
             const data = await fetchWeather(apiKey, lat, lon, units);
             setWeather(data);
+            if (data.confidence) {
+                setForecastConfidence(data.confidence);
+            }
             setLocationName(name);
 
             if (data.currently && data.currently.pressure) {
@@ -160,6 +166,22 @@ export const WeatherProvider = ({ children }) => {
 
             setLastUpdated(Date.now());
             await saveWeatherData(data);
+            
+            // Save current condition snapshot for next week comparison
+            if (data?.currently) {
+                const activityScore = analyzeActivitySafety(selectedActivity || 'walk', data.currently, units)?.score;
+                const snapshot = {
+                    temperature: data.currently.temperature,
+                    precipProbability: data.currently.precipProbability,
+                    windSpeed: data.currently.windSpeed,
+                    conditions: data.currently.summary,
+                    score: activityScore || 0,
+                    timestamp: Date.now()
+                };
+                const now = new Date();
+                await saveWeatherSnapshot(now.getDay(), now.getHours(), snapshot);
+            }
+
             updateWidgetData(data, selectedActivity || 'walk', units);
             await incrementStreak();
         } catch (e) {
@@ -238,8 +260,8 @@ export const WeatherProvider = ({ children }) => {
         units, setUnits, refreshWeather, lastUpdated,
         locationConfig, setLocationConfig, locationName,
         selectedActivity, setSelectedActivity, isOffline,
-        savedSpots, addSpot, removeSpot, pressureHistory, weatherWarnings
-    }), [weather, loading, error, apiKey, units, lastUpdated, locationConfig, locationName, selectedActivity, isOffline, savedSpots, pressureHistory, weatherWarnings]);
+        savedSpots, addSpot, removeSpot, pressureHistory, weatherWarnings, forecastConfidence
+    }), [weather, loading, error, apiKey, units, lastUpdated, locationConfig, locationName, selectedActivity, isOffline, savedSpots, pressureHistory, weatherWarnings, forecastConfidence]);
 
     return (
         <WeatherContext.Provider value={value}>

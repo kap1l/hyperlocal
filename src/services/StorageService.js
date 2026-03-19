@@ -246,3 +246,65 @@ export const markWeeklyReportSeen = async (weekNumber) => {
         console.error("Failed to mark weekly report as seen", e);
     }
 };
+
+export const saveWeatherSnapshot = async (dayOfWeek, hour, snapshot) => {
+    try {
+        await AsyncStorage.setItem(`@snapshot_${dayOfWeek}_${hour}`, JSON.stringify(snapshot));
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to save weather snapshot", e);
+    }
+};
+
+export const getWeatherSnapshot = async (dayOfWeek, hour) => {
+    try {
+        const value = await AsyncStorage.getItem(`@snapshot_${dayOfWeek}_${hour}`);
+        return value ? JSON.parse(value) : null;
+    } catch (e) {
+        Sentry.captureException(e);
+        console.error("Failed to get weather snapshot", e);
+        return null;
+    }
+};
+
+export const getGoal = async () => {
+    try {
+        const value = await AsyncStorage.getItem('@habit_goal');
+        return value ? JSON.parse(value) : null;
+    } catch (e) {
+        Sentry.captureException(e);
+        return null;
+    }
+};
+
+export const saveGoal = async (goal) => {
+    try {
+        if (!goal) {
+            await AsyncStorage.removeItem('@habit_goal');
+        } else {
+            await AsyncStorage.setItem('@habit_goal', JSON.stringify(goal));
+        }
+    } catch (e) {
+        Sentry.captureException(e);
+    }
+};
+
+export const getGoalProgress = async () => {
+    try {
+        const currentWeekNumber = Math.floor(Date.now() / 604800000);
+        const value = await AsyncStorage.getItem(`@goal_progress_${currentWeekNumber}`);
+        return value ? JSON.parse(value) : { sessionsLogged: 0, weekNumber: currentWeekNumber };
+    } catch (e) {
+        Sentry.captureException(e);
+        return { sessionsLogged: 0, weekNumber: Math.floor(Date.now() / 604800000) };
+    }
+};
+
+export const saveGoalProgress = async (progress) => {
+    try {
+        const currentWeekNumber = progress.weekNumber || Math.floor(Date.now() / 604800000);
+        await AsyncStorage.setItem(`@goal_progress_${currentWeekNumber}`, JSON.stringify(progress));
+    } catch (e) {
+        Sentry.captureException(e);
+    }
+};

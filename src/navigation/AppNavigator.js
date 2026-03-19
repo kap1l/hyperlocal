@@ -16,6 +16,7 @@ import CardOrderScreen from '../screens/CardOrderScreen';
 import WatchlistScreen from '../screens/WatchlistScreen';
 import ActivityLogScreen from '../screens/ActivityLogScreen';
 import StravaConnectScreen from '../screens/StravaConnectScreen';
+import GoalSetupScreen from '../screens/GoalSetupScreen';
 
 const Tab = createMaterialTopTabNavigator();
 const Stack = createStackNavigator();
@@ -149,6 +150,7 @@ const AppNavigator = () => {
             <Stack.Screen name="Watchlist" component={WatchlistScreen} />
             <Stack.Screen name="ActivityLog" component={ActivityLogScreen} />
             <Stack.Screen name="StravaConnect" component={StravaConnectScreen} />
+            <Stack.Screen name="GoalSetup" component={GoalSetupScreen} />
         </Stack.Navigator>
     );
 };

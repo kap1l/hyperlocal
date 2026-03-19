@@ -159,6 +159,42 @@ const fetchFromPirateWeather = async (apiKey, lat, lon, units) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Model Confidence
+// ─────────────────────────────────────────────────────────────────────────────
+
+const checkModelConfidence = async (lat, lon, units, primaryCurrent) => {
+    try {
+        const isSi = units === 'si';
+        const params = new URLSearchParams({
+            latitude: lat,
+            longitude: lon,
+            current: 'temperature_2m,precipitation',
+            temperature_unit: isSi ? 'celsius' : 'fahrenheit',
+            models: 'icon_global'
+        });
+        const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+        const res = await fetch(url);
+        if (!res.ok) return 'medium';
+        const data = await res.json();
+        
+        const iconTemp = data.current?.temperature_2m;
+        if (iconTemp === undefined) return 'medium';
+        
+        const primaryTemp = primaryCurrent?.temperature;
+        if (primaryTemp === undefined) return 'medium';
+        
+        const tempDiff = Math.abs(iconTemp - primaryTemp);
+        
+        if (tempDiff >= 3) return 'low';
+        if (tempDiff >= 1.5) return 'medium';
+        return 'high';
+        
+    } catch (e) {
+        return 'medium';
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Public API
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -183,7 +219,10 @@ export const fetchWeather = async (apiKey, lat, lon, units = 'us') => {
         // Try Open-Meteo first (default, no key required)
         if (__DEV__) console.log('[WeatherService] Using Open-Meteo (default, no key)');
         try {
-            return await fetchFromOpenMeteo(latitude, longitude, units);
+            const data = await fetchFromOpenMeteo(latitude, longitude, units);
+            const confidence = await checkModelConfidence(latitude, longitude, units, data.currently);
+            data.confidence = confidence;
+            return data;
         } catch (openMeteoError) {
             Sentry.captureException(openMeteoError);
             if (__DEV__) console.error('[WeatherService] Open-Meteo failed:', openMeteoError.message);

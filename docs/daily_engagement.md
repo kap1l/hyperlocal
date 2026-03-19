@@ -223,3 +223,87 @@ Move these three items from `PENDING` to `COMPLETED` under 1.1.0:
 - Feels-like temperature toggle (WeatherCard.js)
 - ActivityLogService + ActivityLogScreen + LogSessionCard + WeeklyLogSummary
 - WeeklyReportService + WeeklyReportCard
+
+OutWeather — Next Feature Block (v1.2.0)
+Read AGENT_CONTEXT.md before writing any code. All rules in that file are non-negotiable.
+
+TASK 7.1 — Same Conditions Last Week Comparison
+Files to create: src/components/ConditionComparisonCard.js
+Files to modify: src/services/StorageService.js, src/context/WeatherContext.js, src/screens/HomeScreen.js
+
+In StorageService.js, add: saveWeatherSnapshot(dayOfWeek, hour, snapshot) writes to @snapshot_${dayOfWeek}_${hour} where snapshot is { temperature, precipProbability, windSpeed, conditions, score, timestamp }. Add getWeatherSnapshot(dayOfWeek, hour) reads same key, returns parsed object or null.
+In WeatherContext.js, after every successful refreshWeather(), extract from weather.currently: temperature, precipProbability, windSpeed, summary as conditions. Get activityScore from analyzeActivitySafety(selectedActivity, weather.currently, units)?.score. Call saveWeatherSnapshot(new Date().getDay(), new Date().getHours(), snapshot).
+In ConditionComparisonCard.js:
+
+On mount, load snapshot via getWeatherSnapshot(new Date().getDay(), new Date().getHours()) into local state lastWeekSnapshot.
+Accept props currentScore, currentTemp, currentConditions.
+If lastWeekSnapshot is null or lastWeekSnapshot.timestamp > Date.now() - 518400000 (less than 6 days old — not actually last week), return null.
+Compute scoreDelta = currentScore - lastWeekSnapshot.score.
+Compute tempDelta = Math.round(currentTemp - lastWeekSnapshot.temperature).
+Render a single line of contextual text:
+
+If scoreDelta >= 10: "Better than last ${dayName} — conditions up ${scoreDelta} points."
+If scoreDelta <= -10: "Tougher than last ${dayName} — conditions down ${Math.abs(scoreDelta)} points."
+Otherwise: "Similar to last ${dayName} — ${Math.abs(tempDelta)}° ${tempDelta > 0 ? 'warmer' : 'cooler'}."
+
+
+Style as small italic text with theme.textSecondary, fontSize: 12, marginHorizontal: 16, marginBottom: 8.
+Only render when Math.abs(scoreDelta) >= 5 || Math.abs(tempDelta) >= 3 — below that threshold the comparison adds no value.
+
+
+In HomeScreen.js, render <ConditionComparisonCard currentScore={activityAnalysis?.score} currentTemp={weather?.currently?.temperature} currentConditions={weather?.currently?.summary} /> directly below SmartSummaryCard.
+
+
+TASK 7.2 — Outdoor Habit Goals
+Files to create: src/services/GoalService.js, src/components/GoalProgressCard.js, src/screens/GoalSetupScreen.js
+Files to modify: src/navigation/AppNavigator.js, src/screens/SettingsScreen.js, src/screens/HomeScreen.js, src/services/NotificationService.js, src/services/StorageService.js
+
+In StorageService.js, add: getGoal() reads @habit_goal, returns parsed object or null. saveGoal(goal) writes to @habit_goal. getGoalProgress() reads @goal_progress_${currentWeekNumber}, returns parsed object or { sessionsLogged: 0, weekNumber: currentWeekNumber }. saveGoalProgress(progress) writes to @goal_progress_${currentWeekNumber}. Week number via Math.floor(Date.now() / 604800000).
+In GoalService.js, define goal shape: { activity: string, targetDays: number, preferredTime: 'morning'|'afternoon'|'evening'|'any' }. Implement:
+
+getGoal() and saveGoal(goal) via StorageService.
+getProgress() reads current week progress. Returns { sessionsLogged, targetDays, remaining, isOnTrack, daysLeftInWeek }. daysLeftInWeek is 7 - new Date().getDay(). isOnTrack is sessionsLogged / (7 - daysLeftInWeek) >= targetDays / 7.
+logGoalSession() increments sessionsLogged in current week progress and writes back. Call this from ActivityLogService.addLog() automatically — if goal activity matches log activity, call GoalService.logGoalSession().
+getBestRemainingWindows(weeklyForecast, activity, units) — from weeklyForecast, find days with score >= 65, return up to 3 as [{ dayLabel, score }].
+Wrap all in try/catch with Sentry.
+
+
+Create GoalSetupScreen.js:
+
+Three inputs: activity selector (reuse GlassDropdown with full activity list), target days per week ([1,2,3,4,5,6,7] as horizontal selector), preferred time of day (Morning / Afternoon / Evening / Any as segmented control using TouchableOpacity row).
+Save button calls GoalService.saveGoal(goal) and navigates back.
+If existing goal exists on mount, pre-populate all fields.
+Delete goal option shown only when editing — calls saveGoal(null) after Alert confirmation.
+
+
+Create GoalProgressCard.js:
+
+Load goal and progress on mount.
+If no goal set, render a subtle CTA: "Set a weekly outdoor goal →" as a TouchableOpacity navigating to GoalSetupScreen. Style minimally — don't compete with core content.
+If goal set, render: activity icon + "${sessionsLogged}/${targetDays} sessions this week", a progress bar (View with percentage width, colour green if on track, amber if behind), best remaining windows as chips "Thu 82/100", "Sat 79/100".
+If goal complete (sessionsLogged >= targetDays), replace progress bar with "✓ Goal complete this week!" in green.
+
+
+In NotificationService.js, add scheduleGoalReminderNotification(goal, remainingWindows). Schedule for Thursday 6 PM if progress.sessionsLogged < progress.targetDays - 1. Title: "🎯 Goal check-in". Body: "You're ${remaining} session${remaining > 1 ? 's' : ''} from your weekly goal. ${remainingWindows[0]?.dayLabel || 'This weekend'} looks good — score ${remainingWindows[0]?.score || ''}/100.". Cancel any existing goal reminder before scheduling new one via Notifications.cancelAllScheduledNotificationsAsync() filtered by title — use a dedicated notification channel goal-reminders on Android.
+In HomeScreen.js, render <GoalProgressCard /> after WeeklyLogSummary. Import GoalSetupScreen navigation.
+In AppNavigator.js, register GoalSetupScreen in stack.
+In SettingsScreen.js, add "Weekly Goal" row in the existing "Data" section navigating to GoalSetupScreen. Show "${targetDays}x ${activity}/week" as subtitle when goal is set, "Not set" when null.
+
+
+TASK 7.3 — Garmin Connect Placeholder
+Files to modify: src/screens/SettingsScreen.js
+
+In the "Connected Apps" section in SettingsScreen.js, add a "Garmin Connect" row after the Health Connect row.
+Row shows a "Coming Soon" badge styled as a small pill with theme.accent + '30' background and theme.accent text.
+On press show an Alert: title "Garmin Connect", body "Garmin integration is coming soon. We've applied for API access and will notify you when it's available.", single "OK" button.
+Do not wire any service, OAuth, or navigation — placeholder UI only.
+
+
+TASK 7.4 — Multi-Model Weather Confidence Indicator
+Files to create: src/components/ForecastConfidenceChip.js
+Files to modify: src/services/WeatherService.js, src/context/WeatherContext.js, src/screens/HomeScreen.js
+
+In WeatherService.js, after fetching Open-Meteo data, make a second lightweight fetch to Open-Meteo using the ICON model specifically: append &models=icon_global to the base URL. Fetch only current block. Store both responses — primary (default ensemble) and secondary (ICON model). Extract temperature_2m and precipitation from both. Compute tempDelta = Math.abs(primary.current.temperature_2m - secondary.current.temperature_2m) and precipDelta = Math.abs(primary.current.precipitation - secondary.current.precipitation). Return confidence object: { tempDelta, precipDelta, level: tempDelta < 1 && precipDelta < 0.5 ? 'high' : tempDelta < 3 ? 'medium' : 'low' } alongside the main weather data. Wrap secondary fetch in its own try/catch — if it fails, return { level: 'unknown' } and do not affect primary data.
+In WeatherContext.js, store forecastConfidence in state. Expose from Provider.
+In ForecastConfidenceChip.js, accept prop confidence. Map level to display: high → "Forecast confident" with #22c55e. medium → "Models slightly disagree" with #f59e0b. low → "Forecast uncertain" with #ef4444. unknown → return null. Render as a small pill chip with icon checkmark-circle-outline / alert-circle-outline / close-circle-outline from Ionicons. Style: fontSize: 11, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10.
+In HomeScreen.js, render <ForecastConfidenceChip confidence={forecastConfidence} /> inline in the header area next to the location name, below the temperature. Only render when forecastConfidence?.level !== 'unknown'.

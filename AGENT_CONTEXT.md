@@ -107,3 +107,11 @@ Start every session with:
 ```
 Read AGENT_CONTEXT.md before writing any code. 
 All rules in that file are non-negotiable.
+
+## 1.2.0 (Planned)
+COMPLETED:
+- ConditionComparisonCard — same conditions last week comparison
+- GoalService + GoalProgressCard + GoalSetupScreen — weekly outdoor habit goals
+- Goal reminder notification (Thursday 6 PM, channel: goal-reminders)
+- Garmin Connect placeholder row in Connected Apps
+- ForecastConfidenceChip — multi-model confidence indicator

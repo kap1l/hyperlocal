@@ -58,6 +58,11 @@ export const registerForNotifications = async () => {
             name: 'Daily Briefing',
             importance: Notifications.AndroidImportance.DEFAULT,
         });
+
+        Notifications.setNotificationChannelAsync('goal-reminders', {
+            name: 'Goal Reminders',
+            importance: Notifications.AndroidImportance.DEFAULT,
+        });
     }
     return true;
 };
@@ -190,5 +195,30 @@ export const scheduleWeeklyReportNotification = async () => {
     } catch (e) {
         Sentry.captureException(e);
         console.log('Failed to schedule weekly report notification', e);
+    }
+};
+
+export const scheduleGoalReminderNotification = async (goal) => {
+    if (isExpoGo || !goal) {
+        return;
+    }
+
+    try {
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: `🎯 Weekly Goal Check-in`,
+                body: `Are you on track to hit your ${goal.targetDays}x ${goal.activity} goal this week?`,
+                sound: true,
+            },
+            trigger: {
+                weekday: 5, // Thursday
+                hour: 18,   // 6 PM
+                minute: 0,
+                repeats: true,
+            },
+        });
+    } catch (e) {
+        Sentry.captureException(e);
+        console.log('Failed to schedule goal reminder', e);
     }
 };

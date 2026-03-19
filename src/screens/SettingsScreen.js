@@ -16,6 +16,8 @@ import { useSubscription } from '../context/SubscriptionContext';
 import * as Sentry from '@sentry/react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getBriefingTime, setBriefingTime } from '../services/StorageService';
+import { getGoal } from '../services/GoalService';
+import { useIsFocused } from '@react-navigation/native';
 
 const SettingsScreen = ({ navigation }) => {
     const {
@@ -39,11 +41,19 @@ const SettingsScreen = ({ navigation }) => {
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [briefingTime, setBriefingTimeState] = useState(new Date());
     const [showTimePicker, setShowTimePicker] = useState(false);
+    const [goal, setGoal] = useState(null);
+    const isFocused = useIsFocused();
 
     useEffect(() => {
         loadAlertsState();
         loadBriefingTime();
     }, []);
+
+    useEffect(() => {
+        if (isFocused) {
+            getGoal().then(setGoal);
+        }
+    }, [isFocused]);
 
     const loadBriefingTime = async () => {
         const { hour, minute } = await getBriefingTime();
@@ -410,6 +420,60 @@ const SettingsScreen = ({ navigation }) => {
                     >
                         <Text style={[styles.label, { color: theme.textSecondary, marginBottom: 0 }]}>Activity Log</Text>
                         <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                    </TouchableOpacity>
+                    
+                    <View style={{ height: 1, backgroundColor: theme.glassBorder, marginVertical: 4 }} />
+                    
+                    <TouchableOpacity
+                        style={[styles.row, { paddingVertical: 12 }]}
+                        onPress={() => navigation.navigate('GoalSetup')}
+                    >
+                        <View>
+                            <Text style={[styles.label, { color: theme.textSecondary, marginBottom: 2 }]}>Weekly Goal</Text>
+                            <Text style={{ fontSize: 11, color: theme.textSecondary }}>
+                                {goal ? `${goal.targetDays}x ${goal.activity}/week` : 'Not set'}
+                            </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Connected Apps */}
+                <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
+                    <Text style={[styles.label, { color: theme.textSecondary }]}>Connected Apps</Text>
+
+                    <TouchableOpacity
+                        style={[styles.row, { paddingVertical: 12 }]}
+                        onPress={() => navigation.navigate('StravaConnect')}
+                    >
+                        <Text style={[styles.label, { color: theme.textSecondary, marginBottom: 0 }]}>Strava</Text>
+                        <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                    </TouchableOpacity>
+                    
+                    <View style={{ height: 1, backgroundColor: theme.glassBorder, marginVertical: 4 }} />
+
+                    {Platform.OS === 'android' && (
+                        <>
+                            <TouchableOpacity
+                                style={[styles.row, { paddingVertical: 12 }]}
+                                onPress={() => Alert.alert('Health Connect', 'Syncing your step data automatically from Health Connect.')}
+                            >
+                                <Text style={[styles.label, { color: theme.textSecondary, marginBottom: 0 }]}>Health Connect</Text>
+                                <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+                            </TouchableOpacity>
+                            
+                            <View style={{ height: 1, backgroundColor: theme.glassBorder, marginVertical: 4 }} />
+                        </>
+                    )}
+
+                    <TouchableOpacity
+                        style={[styles.row, { paddingVertical: 12 }]}
+                        onPress={() => Alert.alert('Garmin Connect', "Garmin integration is coming soon. We've applied for API access and will notify you when it's available.")}
+                    >
+                        <Text style={[styles.label, { color: theme.textSecondary, marginBottom: 0 }]}>Garmin Connect</Text>
+                        <View style={{ backgroundColor: theme.accent + '30', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
+                            <Text style={{ fontSize: 10, fontWeight: 'bold', color: theme.accent }}>Coming Soon</Text>
+                        </View>
                     </TouchableOpacity>
                 </View>
 
