@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { getLatestWeeklyReport } from '../services/WeeklyReportService';
 import { useIsFocused } from '@react-navigation/native';
 
-export default function WeeklyReportCard() {
+export default function WeeklyReportCard({ onDismiss }) {
     const { theme } = useTheme();
     const isFocused = useIsFocused();
     const [report, setReport] = useState(null);
@@ -27,35 +27,21 @@ export default function WeeklyReportCard() {
                     <Ionicons name="bar-chart-outline" size={16} color={theme.accent} />
                     <Text style={[styles.title, { color: theme.text }]}>Weekly Report</Text>
                 </View>
-                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{dateStr}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{dateStr}</Text>
+                    {onDismiss && (
+                        <TouchableOpacity onPress={onDismiss}>
+                            <Ionicons name="close" size={20} color={theme.textSecondary} />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
             <View style={styles.statsRow}>
                 <View style={styles.statBox}>
                     <Text style={[styles.statValue, { color: theme.text }]}>{report.sessionCount}</Text>
-                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Sessions</Text>
+                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Total Sessions logged</Text>
                 </View>
-
-                <View style={[styles.divider, { backgroundColor: theme.glassBorder }]} />
-
-                <View style={styles.statBox}>
-                    <Text style={[styles.statValue, { color: theme.text }]}>
-                        {Math.round(report.totalDuration / 60)}h {report.totalDuration % 60}m
-                    </Text>
-                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Active Time</Text>
-                </View>
-
-                {report.totalDistance > 0 && (
-                    <>
-                        <View style={[styles.divider, { backgroundColor: theme.glassBorder }]} />
-                        <View style={styles.statBox}>
-                            <Text style={[styles.statValue, { color: theme.text }]}>
-                                {report.totalDistance.toFixed(1)}
-                            </Text>
-                            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Miles</Text>
-                        </View>
-                    </>
-                )}
             </View>
             
             {report.topActivity !== 'None' && (

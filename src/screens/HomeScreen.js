@@ -36,12 +36,12 @@ import ShareCard from '../components/ShareCard';
 import WatchlistCard from '../components/WatchlistCard';
 import LogSessionCard from '../components/LogSessionCard';
 import WeeklyReportCard from '../components/WeeklyReportCard';
-import ComparisonCard from '../components/ComparisonCard';
 import StravaInsightCard from '../components/StravaInsightCard';
 import HealthInsightCard from '../components/HealthInsightCard';
 import { analyzeActivitySafety, getSeverityOverride } from '../utils/weatherSafety';
 import { getCardOrder, DEFAULT_ORDER } from '../services/CardOrderService';
 import { getStreak } from '../services/StreakService';
+import { shouldShowReport, markReportAsSeen } from '../services/WeeklyReportService';
 import { addLog, getWeeklySummary } from '../services/ActivityLogService';
 import WeeklyLogSummary from '../components/WeeklyLogSummary';
 import ConditionComparisonCard from '../components/ConditionComparisonCard';
@@ -63,6 +63,7 @@ const HomeScreen = ({ navigation }) => {
     const [cardOrder, setCardOrder] = useState(DEFAULT_ORDER);
     const [streak, setStreak] = useState({ count: 0, lastActiveDate: null });
     const [weeklySummary, setWeeklySummary] = useState(null);
+    const [showWeeklyReport, setShowWeeklyReport] = useState(false);
     const isFocused = useIsFocused();
 
     useEffect(() => {
@@ -70,6 +71,7 @@ const HomeScreen = ({ navigation }) => {
             getCardOrder().then(setCardOrder);
             getStreak().then(setStreak);
             getWeeklySummary().then(setWeeklySummary);
+            shouldShowReport().then(setShowWeeklyReport);
         }
     }, [isFocused]);
 
@@ -262,7 +264,7 @@ const HomeScreen = ({ navigation }) => {
                         <TouchableOpacity 
                             style={[
                                 styles.logButton, 
-                                { backgroundColor: activityAnalysis.safetyScore >= 70 ? theme.accent : theme.textSecondary }
+                                { backgroundColor: activityAnalysis.score >= 70 ? theme.accent : theme.textSecondary }
                             ]}
                             onPress={async () => {
                                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -270,7 +272,7 @@ const HomeScreen = ({ navigation }) => {
                                     id: Date.now().toString(),
                                     timestamp: Date.now(),
                                     activity: selectedActivity || 'walk',
-                                    score: activityAnalysis.safetyScore,
+                                    score: activityAnalysis.score,
                                     conditions: weather.currently.icon,
                                     temperature: weather.currently.temperature
                                 });
@@ -283,8 +285,14 @@ const HomeScreen = ({ navigation }) => {
                         </TouchableOpacity>
                         
                         <WatchlistCard />
-                        <ComparisonCard />
-                        <WeeklyReportCard />
+                        {showWeeklyReport && (
+                            <WeeklyReportCard 
+                                onDismiss={() => {
+                                    markReportAsSeen();
+                                    setShowWeeklyReport(false);
+                                }} 
+                            />
+                        )}
                         <StravaInsightCard />
                         {Platform.OS === 'android' && <HealthInsightCard />}
                         <LogSessionCard />

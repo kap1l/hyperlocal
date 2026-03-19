@@ -28,10 +28,6 @@ export const generateWeeklyReport = async () => {
 
         if (recentLogs.length === 0) return null;
 
-        // Calculate stats
-        const totalDuration = recentLogs.reduce((acc, log) => acc + log.duration, 0);
-        const totalDistance = recentLogs.reduce((acc, log) => acc + (log.distance || 0), 0);
-
         const activitiesCount = recentLogs.reduce((acc, log) => {
             acc[log.activity] = (acc[log.activity] || 0) + 1;
             return acc;
@@ -51,8 +47,6 @@ export const generateWeeklyReport = async () => {
             id: Date.now().toString(),
             generatedAt: now.toISOString(),
             weekId: currentWeekId,
-            totalDuration,
-            totalDistance,
             sessionCount: recentLogs.length,
             topActivity
         };
@@ -79,10 +73,30 @@ export const getLatestWeeklyReport = async () => {
 
 export const markReportAsSeen = async () => {
     try {
-        const currentWeekId = getWeekIdentifier(new Date());
-        await markWeeklyReportSeen(currentWeekId);
+        const previousDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const previousWeekId = getWeekIdentifier(previousDate);
+        await markWeeklyReportSeen(previousWeekId);
     } catch (e) {
         Sentry.captureException(e);
         console.error("Failed to mark weekly report as seen", e);
+    }
+};
+
+export const shouldShowReport = async () => {
+    try {
+        const now = new Date();
+        if (now.getDay() !== 1) return false;
+
+        const previousDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const previousWeekId = getWeekIdentifier(previousDate);
+        
+        const existingReport = await getWeeklyReport(previousWeekId);
+        if (!existingReport) return false;
+
+        const hasSeen = await hasSeenWeeklyReport(previousWeekId);
+        return !hasSeen;
+    } catch (e) {
+        Sentry.captureException(e);
+        return false;
     }
 };

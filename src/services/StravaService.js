@@ -1,9 +1,10 @@
 import * as AuthSession from 'expo-auth-session';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 import * as Sentry from '@sentry/react-native';
 
 const STRAVA_CLIENT_ID = process.env.EXPO_PUBLIC_STRAVA_CLIENT_ID || '141887'; // Fallback to provided dev ID if env missing
-const STRAVA_CLIENT_SECRET = process.env.EXPO_PUBLIC_STRAVA_CLIENT_SECRET || 'test_secret_replace_in_prod'; 
+const STRAVA_CLIENT_SECRET = Constants.expoConfig?.extra?.stravaClientSecret || 'test_secret_replace_in_prod'; 
 
 const authEndpoint = 'https://www.strava.com/oauth/mobile/authorize';
 const tokenEndpoint = 'https://www.strava.com/oauth/token';
