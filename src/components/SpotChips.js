@@ -3,10 +3,12 @@ import { ScrollView, TouchableOpacity, Text, StyleSheet, View } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { useWeather } from '../context/WeatherContext';
 import { useTheme } from '../context/ThemeContext';
+import { useSubscription } from '../context/SubscriptionContext';
 
 const SpotChips = ({ onAddPress }) => {
     const { savedSpots, setLocationConfig, locationConfig } = useWeather();
     const { theme } = useTheme();
+    const { isPro, presentPaywall } = useSubscription();
 
     if (!savedSpots) return null;
 
@@ -46,9 +48,15 @@ const SpotChips = ({ onAddPress }) => {
 
                 <TouchableOpacity
                     style={[styles.chip, { backgroundColor: theme.cardBg, borderColor: theme.accent, paddingHorizontal: 16 }]}
-                    onPress={onAddPress}
+                    onPress={() => {
+                        if (!isPro && savedSpots.length >= 1) {
+                            presentPaywall();
+                        } else {
+                            onAddPress();
+                        }
+                    }}
                 >
-                    <Ionicons name="add" size={16} color={theme.text} />
+                    <Ionicons name={!isPro && savedSpots.length >= 1 ? "lock-closed" : "add"} size={16} color={theme.text} />
                 </TouchableOpacity>
             </ScrollView>
         </View>

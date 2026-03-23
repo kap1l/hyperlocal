@@ -7,7 +7,7 @@ import { generateDailySummary, generateFreeSummary } from '../services/SmartSumm
 
 const SmartSummaryCard = ({ weather, activity }) => {
     const { theme } = useTheme();
-    const { isPro, purchasePro } = useSubscription();
+    const { isPro, presentPaywall } = useSubscription();
 
     const summary = useMemo(() => {
         return generateDailySummary(weather, activity);
@@ -31,7 +31,7 @@ const SmartSummaryCard = ({ weather, activity }) => {
                 {/* Upgrade Teaser */}
                 <TouchableOpacity
                     activeOpacity={0.7}
-                    onPress={purchasePro}
+                    onPress={presentPaywall}
                     style={[styles.upgradeRow, { borderTopColor: theme.glassBorder }]}
                 >
                     <View style={styles.upgradeLeft}>

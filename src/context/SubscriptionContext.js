@@ -3,6 +3,7 @@ import { Alert, Platform } from 'react-native';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import Constants from 'expo-constants';
 import * as Sentry from '@sentry/react-native';
+import { navigate, navigationRef } from '../navigation/NavigationService';
 
 const SubscriptionContext = createContext();
 
@@ -22,6 +23,7 @@ export const SubscriptionProvider = ({ children }) => {
     const [trialDaysLeft, setTrialDaysLeft] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [offerings, setOfferings] = useState(null);
+    const [packages, setPackages] = useState({ monthly: null, annual: null, lifetime: null });
 
     useEffect(() => {
         initializeRevenueCat();
@@ -51,6 +53,13 @@ export const SubscriptionProvider = ({ children }) => {
 
             const availableOfferings = await Purchases.getOfferings();
             setOfferings(availableOfferings.current);
+            if (availableOfferings.current) {
+                setPackages({
+                    monthly: availableOfferings.current.monthly,
+                    annual: availableOfferings.current.annual,
+                    lifetime: availableOfferings.current.lifetime,
+                });
+            }
 
             Purchases.addCustomerInfoUpdateListener(updateSubscriptionStatus);
 
@@ -81,23 +90,25 @@ export const SubscriptionProvider = ({ children }) => {
         }
     };
 
-    const purchasePro = async () => {
+    const purchasePro = async (pkg = null) => {
         try {
             if (!offerings) {
                 Alert.alert('Error', 'No subscription packages available. Please try again later.');
                 return false;
             }
 
-            const monthlyPackage = offerings.availablePackages.find(
-                pkg => pkg.identifier === 'monthly' || pkg.identifier === '$rc_monthly'
-            );
+            if (!pkg) {
+                pkg = packages?.monthly || offerings.availablePackages.find(
+                    p => p.identifier === 'monthly' || p.identifier === '$rc_monthly'
+                );
+            }
 
-            if (!monthlyPackage) {
-                Alert.alert('Error', 'Monthly subscription not found.');
+            if (!pkg) {
+                Alert.alert('Error', 'Subscription package not found.');
                 return false;
             }
 
-            const { customerInfo } = await Purchases.purchasePackage(monthlyPackage);
+            const { customerInfo } = await Purchases.purchasePackage(pkg);
             updateSubscriptionStatus(customerInfo);
 
             if (customerInfo.entitlements.active[ENTITLEMENT_ID]) {
@@ -149,20 +160,20 @@ export const SubscriptionProvider = ({ children }) => {
             return;
         }
 
-        const monthlyPackage = offerings.availablePackages.find(
-            pkg => pkg.identifier === 'monthly' || pkg.identifier === '$rc_monthly'
-        );
-
-        if (monthlyPackage) {
-            const price = monthlyPackage.product.priceString;
-            Alert.alert(
-                'Upgrade to OutWeather+',
-                `Get unlimited features for ${price}/month\n\n✓ Search any city\n✓ No ads\n✓ Advanced forecasts\n✓ Priority support`,
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: `Subscribe (${price})`, onPress: purchasePro }
-                ]
-            );
+        if (navigationRef.isReady()) {
+            navigate('Paywall');
+        } else {
+            const pkg = packages?.monthly || offerings.availablePackages[0];
+            if (pkg) {
+                Alert.alert(
+                    'Upgrade to OutWeather+',
+                    `Get unlimited features for ${pkg.product.priceString}/month`,
+                    [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: `Subscribe (${pkg.product.priceString})`, onPress: () => purchasePro(pkg) }
+                    ]
+                );
+            }
         }
     };
 
@@ -191,6 +202,7 @@ export const SubscriptionProvider = ({ children }) => {
             trialDaysLeft,
             isLoading,
             offerings,
+            packages,
             purchasePro,
             presentPaywall,
             presentCustomerCenter,

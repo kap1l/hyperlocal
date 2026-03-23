@@ -67,15 +67,22 @@ weather.minutely.data = array of 60 interpolated minute objects.
 10. All new screens must be registered in AppNavigator.js
 
 ## Current Pro Gating
-Free: Walk, Run, Drive, Cycle (recently unlocked)
-Pro: Hike, Tennis, Golf, Yoga, Fishing, Stargazing, Photo/Film, Motorbike
-Pro features: City search, ad-free, Smart Summary best time, card order customisation
+Free: All Activities unlocked (Walk, Run, Drive, Cycle, Hike, Tennis, Golf, Yoga, Fishing, Stargazing, Photo/Film).
+Pro features: 
+- Best Time Finder
+- Saved Spots (> 1 location)
+- Condition Watchlist (> 1 alert)
+- Activity History
+- Weekly Performance Report
+- City search (Manual Mode)
+- Custom Home Screen Layout
+- Ad-free experience
 
 ## Monetisation
-- 30-day free trial on first install
-- $1.99/month (under review — may move to $3.99)
+- Three package options: Monthly, Annual, Lifetime
+- 30-day free trial on Monthly and Annual plans
 - Emergency Pro bypass removed — purchases enforced in all builds
-- AdMob banner shown to free users, hidden for Pro
+- AdMob banner shown to free users, hidden for Pro and during high-z-index overlays
 
 ## Background Task
 Task name constant: defined in BackgroundWeatherTask.js

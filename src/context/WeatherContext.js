@@ -245,8 +245,8 @@ export const WeatherProvider = ({ children }) => {
         await saveActivityToStorage(activity);
     };
 
-    const addSpot = async (spot) => {
-        const newSpots = await addSpotToStorage(spot);
+    const addSpot = async (spot, isPro = false) => {
+        const newSpots = await addSpotToStorage(spot, isPro);
         setSavedSpots(newSpots);
     };
 

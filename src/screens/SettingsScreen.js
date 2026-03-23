@@ -29,7 +29,7 @@ const SettingsScreen = ({ navigation }) => {
         savedSpots, removeSpot
     } = useWeather();
     const { theme, mode, setMode, useOled, toggleOled } = useTheme();
-    const { isPro, purchasePro, restorePurchases } = useSubscription(); // Now uses the safe mock context
+    const { isPro, purchasePro, restorePurchases, presentPaywall } = useSubscription();
 
     const [barometerEnabled, setBarometerEnabled] = useState(false);
     const [alertsEnabled, setAlertsEnabled] = useState(true);
@@ -129,20 +129,19 @@ const SettingsScreen = ({ navigation }) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setSelectedActivity(id);
     };
-
     const activities = [
         { id: 'walk', label: 'Walking', icon: 'walk-outline', locked: false },
         { id: 'run', label: 'Running', icon: 'speedometer-outline', locked: false },
         { id: 'drive', label: 'Driving', icon: 'car-outline', locked: false },
-        // Premium Activities
+        // Premium Activities (Now Free)
         { id: 'cycle', label: 'Cycling', icon: 'bicycle-outline', locked: false },
-        { id: 'camera', label: 'Photo/Film', icon: 'camera-outline', locked: !isPro },
-        { id: 'hike', label: 'Hiking', icon: 'trail-sign-outline', locked: !isPro },
-        { id: 'tennis', label: 'Tennis', icon: 'tennisball-outline', locked: !isPro },
-        { id: 'golf', label: 'Golf', icon: 'golf-outline', locked: !isPro },
-        { id: 'yoga', label: 'Outdoor Yoga', icon: 'body-outline', locked: !isPro },
-        { id: 'fishing', label: 'Fishing', icon: 'fish-outline', locked: !isPro },
-        { id: 'stargaze', label: 'Stargazing', icon: 'star-outline', locked: !isPro },
+        { id: 'camera', label: 'Photo/Film', icon: 'camera-outline', locked: false },
+        { id: 'hike', label: 'Hiking', icon: 'trail-sign-outline', locked: false },
+        { id: 'tennis', label: 'Tennis', icon: 'tennisball-outline', locked: false },
+        { id: 'golf', label: 'Golf', icon: 'golf-outline', locked: false },
+        { id: 'yoga', label: 'Outdoor Yoga', icon: 'body-outline', locked: false },
+        { id: 'fishing', label: 'Fishing', icon: 'fish-outline', locked: false },
+        { id: 'stargaze', label: 'Stargazing', icon: 'star-outline', locked: false },
     ];
 
     const handleWipeData = () => {
@@ -196,23 +195,10 @@ const SettingsScreen = ({ navigation }) => {
                         label="My Primary Activity"
                         value={selectedActivity}
                         onSelect={(id) => {
-                            const act = activities.find(a => a.id === id);
-                            if (act?.locked) {
-                                Alert.alert(
-                                    "Premium Feature 🔒",
-                                    "Try OutWeather+ free for 30 days — unlock all activities, remove ads, and search any city.",
-                                    [
-                                        { text: "Cancel", style: "cancel" },
-                                        { text: "Start Free Trial", onPress: purchasePro }
-                                    ]
-                                );
-                                return;
-                            }
                             handleUpdateActivity(id);
                         }}
                         options={activities.map(a => ({
                             ...a,
-                            label: a.locked ? `${a.label} 🔒` : a.label,
                             value: a.id
                         }))}
                     />
@@ -416,10 +402,24 @@ const SettingsScreen = ({ navigation }) => {
                     
                     <TouchableOpacity
                         style={[styles.row, { paddingVertical: 12 }]}
-                        onPress={() => navigation.navigate('ActivityLog')}
+                        onPress={() => {
+                            if (!isPro) {
+                                presentPaywall();
+                            } else {
+                                navigation.navigate('ActivityLog');
+                            }
+                        }}
                     >
-                        <Text style={[styles.label, { color: theme.textSecondary, marginBottom: 0 }]}>Activity Log</Text>
-                        <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                        <View>
+                            <Text style={[styles.label, { color: theme.textSecondary, marginBottom: 0 }]}>Activity History</Text>
+                        </View>
+                        {!isPro ? (
+                            <View style={{ backgroundColor: theme.accent, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
+                                <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#fff' }}>Pro</Text>
+                            </View>
+                        ) : (
+                            <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                        )}
                     </TouchableOpacity>
                     
                     <View style={{ height: 1, backgroundColor: theme.glassBorder, marginVertical: 4 }} />

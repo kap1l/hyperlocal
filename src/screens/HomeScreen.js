@@ -53,11 +53,12 @@ const HomeScreen = ({ navigation }) => {
     const { weather, loading, error, refreshWeather, apiKey, locationName, setLocationConfig, isOffline, lastUpdated, weatherWarnings, forecastConfidence } = useWeather();
     const { theme } = useTheme();
     const { selectedActivity, units, addSpot } = useWeather();
-    const { isPro, isTrialing, trialDaysLeft, purchasePro } = useSubscription(); // Now uses the safe mock context
+    const { isPro, isTrialing, trialDaysLeft, purchasePro, presentPaywall } = useSubscription();
     const [prevLoading, setPrevLoading] = useState(false);
     const [searchVisible, setSearchVisible] = useState(false);
     const [searchAction, setSearchAction] = useState('view');
     const [bestTimeVisible, setBestTimeVisible] = useState(false);
+    const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
     const [fadeAnim] = useState(new Animated.Value(0));
     const [trialBannerDismissed, setTrialBannerDismissed] = useState(true);
     const [cardOrder, setCardOrder] = useState(DEFAULT_ORDER);
@@ -157,7 +158,7 @@ const HomeScreen = ({ navigation }) => {
 
     return (
         <WeatherBackground condition={backgroundCondition}>
-            <OnboardingOverlay />
+            <OnboardingOverlay onVisibilityChange={setIsOnboardingVisible} />
             <WeatherWarningBanner warnings={weatherWarnings} />
             <OfflineBanner isOffline={isOffline} lastUpdated={lastUpdated} />
             
@@ -258,15 +259,21 @@ const HomeScreen = ({ navigation }) => {
                                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                     setBestTimeVisible(true);
                                 }}
+                                isPro={isPro}
+                                onUnlock={() => presentPaywall()}
                             />
                         </ShareCard>
                         
                         <TouchableOpacity 
                             style={[
                                 styles.logButton, 
-                                { backgroundColor: activityAnalysis.score >= 70 ? theme.accent : theme.textSecondary }
+                                { backgroundColor: !isPro ? theme.textSecondary : (activityAnalysis.score >= 70 ? theme.accent : theme.textSecondary) }
                             ]}
                             onPress={async () => {
+                                if (!isPro) {
+                                    presentPaywall();
+                                    return;
+                                }
                                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                                 await addLog({
                                     id: Date.now().toString(),
@@ -280,12 +287,12 @@ const HomeScreen = ({ navigation }) => {
                                 getWeeklySummary().then(setWeeklySummary);
                             }}
                         >
-                            <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                            <Ionicons name={!isPro ? "lock-closed" : "add-circle-outline"} size={20} color="#fff" />
                             <Text style={styles.logButtonText}>Log this session</Text>
                         </TouchableOpacity>
                         
                         <WatchlistCard />
-                        {showWeeklyReport && (
+                        {showWeeklyReport && isPro && (
                             <WeeklyReportCard 
                                 onDismiss={() => {
                                     markReportAsSeen();
@@ -386,7 +393,7 @@ const HomeScreen = ({ navigation }) => {
                             }
                         })}
 
-                        <BannerAdComponent />
+                        <BannerAdComponent forceHide={searchVisible || bestTimeVisible || isOnboardingVisible} />
                     </Animated.View>
                 )}
             </ScrollView>
@@ -394,10 +401,20 @@ const HomeScreen = ({ navigation }) => {
             <CitySearchModal
                 visible={searchVisible}
                 onClose={() => setSearchVisible(false)}
-                onSelect={(item) => {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                onSelect={async (item) => {
                     if (searchAction === 'save') {
-                        addSpot({ id: Date.now().toString(), name: item.name, lat: item.latitude, lon: item.longitude, activity: selectedActivity });
+                        try {
+                            await addSpot({ id: Date.now().toString(), name: item.name, lat: item.latitude, lon: item.longitude, activity: selectedActivity }, isPro);
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        } catch (e) {
+                            if (e.code === 'SPOTS_LIMIT_REACHED') {
+                                presentPaywall();
+                                return;
+                            }
+                            console.error(e);
+                        }
+                    } else {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     }
                     setLocationConfig({
                         mode: 'manual',

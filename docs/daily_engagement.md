@@ -307,3 +307,198 @@ In WeatherService.js, after fetching Open-Meteo data, make a second lightweight 
 In WeatherContext.js, store forecastConfidence in state. Expose from Provider.
 In ForecastConfidenceChip.js, accept prop confidence. Map level to display: high → "Forecast confident" with #22c55e. medium → "Models slightly disagree" with #f59e0b. low → "Forecast uncertain" with #ef4444. unknown → return null. Render as a small pill chip with icon checkmark-circle-outline / alert-circle-outline / close-circle-outline from Ionicons. Style: fontSize: 11, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10.
 In HomeScreen.js, render <ForecastConfidenceChip confidence={forecastConfidence} /> inline in the header area next to the location name, below the temperature. Only render when forecastConfidence?.level !== 'unknown'.
+
+**OutWeather — Pricing & Monetisation Restructure**
+
+Read `AGENT_CONTEXT.md` before writing any code. All rules in that file are non-negotiable.
+
+---
+
+**TASK 8.1 — Unlock All Activities for Free Tier**
+
+Files to modify: `src/screens/SettingsScreen.js`
+
+1. In the `activities` array, set `locked: false` on every activity. No activity should be gated behind Pro.
+2. Remove any `🔒` suffix from activity labels.
+3. Remove the `"Premium Feature 🔒"` Alert that fires when a locked activity is tapped — this code path no longer exists.
+4. Keep the `isPro` import — it is still used elsewhere in the screen.
+
+---
+
+**TASK 8.2 — Restructure Pro Feature Gating**
+
+Files to modify: `src/screens/HomeScreen.js`, `src/screens/SettingsScreen.js`, `src/components/BestTimeModal.js`, `src/services/SpotService.js`, `src/services/WatchlistService.js`
+
+**Best Time Finder — hero paywall moment:**
+
+1. In `HomeScreen.js`, find the "Find Best Time" button. When `!isPro`, do not navigate to `BestTimeModal`. Instead render a locked state inline: show a blurred or low-opacity preview `View` with a lock icon overlay and text `"See your best window"`. Below it render a `TouchableOpacity` CTA `"Unlock Best Time Finder"` calling `presentPaywall()` from `useSubscription()`.
+2. When `isPro`, render normally — no change to existing `BestTimeModal` flow.
+
+**Saved Spots — limit free to 1:**
+
+1. In `SpotService.js`, update `addSpot(spot)` to accept a second param `isPro`. If `!isPro` and `currentSpots.length >= 1`, throw a custom error `{ code: 'SPOTS_LIMIT_REACHED', message: 'Free users can save 1 location. Upgrade to save unlimited spots.' }`.
+2. In `SpotChips.js`, catch this error and call `presentPaywall()` instead of adding the spot.
+3. The `+` chip on SpotChips shows a lock icon when free user already has 1 spot saved.
+
+**Condition Watchlist — limit free to 1:**
+
+1. In `WatchlistService.js`, update `addWatch(item)` to accept `isPro`. If `!isPro` and `currentWatchlist.length >= 1`, throw `{ code: 'WATCHLIST_LIMIT_REACHED', message: 'Free users can set 1 alert. Upgrade for unlimited alerts.' }`.
+2. In `WatchlistScreen.js`, catch this error on the save action and call `presentPaywall()`.
+3. On `WatchlistScreen`, when free user has 1 alert set, show the "New Alert" button as disabled with a lock icon and label `"Upgrade for more alerts"`.
+
+**Activity History — gate behind Pro:**
+
+1. In `HomeScreen.js`, wrap the `"Log this session"` button in `isPro` check. When `!isPro`, show button as greyed out with lock icon. On press call `presentPaywall()`.
+2. In `SettingsScreen.js`, the `"Activity History"` row when `!isPro` shows `"Pro"` badge and calls `presentPaywall()` instead of navigating.
+
+**Weekly Report — gate behind Pro:**
+
+1. In `HomeScreen.js`, wrap `WeeklyReportCard` render in `isPro` check. When `!isPro`, do not render it at all — no teaser, no locked state. Keep it invisible to free users until they upgrade.
+
+**Card Order — already Pro gated, no change needed.**
+
+---
+
+**TASK 8.3 — Update RevenueCat Offerings**
+
+Files to modify: `src/context/SubscriptionContext.js`
+
+1. Update `purchasePro()` to handle three package types. Search offerings for packages in this order: `$rc_annual` or `annual`, `$rc_monthly` or `monthly`, `$rc_lifetime` or `lifetime`. Store all three in state `const [packages, setPackages] = useState({ monthly: null, annual: null, lifetime: null })`.
+
+2. Populate packages in `initializeRevenueCat()` after `getOfferings()`:
+```javascript
+const monthly = offerings.availablePackages.find(p => 
+  p.identifier === '$rc_monthly' || p.identifier === 'monthly');
+const annual = offerings.availablePackages.find(p => 
+  p.identifier === '$rc_annual' || p.identifier === 'annual');
+const lifetime = offerings.availablePackages.find(p => 
+  p.identifier === '$rc_lifetime' || p.identifier === 'lifetime');
+setPackages({ monthly, annual, lifetime });
+```
+
+3. Expose `packages` from Provider value alongside existing exports.
+
+4. Update `purchasePro()` to accept an optional `packageType` param defaulting to `'annual'`. Purchase the corresponding package from `packages[packageType]`. If that package is null, fall back to whichever package is available.
+
+---
+
+**TASK 8.4 — Build Three-Option Paywall Screen**
+
+Files to create: `src/screens/PaywallScreen.js`
+Files to modify: `src/context/SubscriptionContext.js`, `src/navigation/AppNavigator.js`
+
+1. Create `PaywallScreen.js` as a full-screen modal. Structure:
+
+   **Header:** Close X button top-right. Title `"OutWeather+"`. Subtitle `"Your outdoor activity advantage"`.
+
+   **Feature list** (4 rows with Ionicons checkmarks):
+   - `"Best Time Finder — optimal window for your activity"`
+   - `"Unlimited saved locations"`
+   - `"Unlimited condition alerts"`
+   - `"Activity history & weekly reports"`
+   - `"No ads"`
+
+   **Pricing options** — three `TouchableOpacity` cards rendered vertically:
+
+   Card 1 — Annual (render first, styled as hero/recommended):
+   - Label: `"Annual"` with `"BEST VALUE"` badge in `theme.accent` background
+   - Price: `annual?.product?.priceString` + `"/year"`
+   - Sub-label: compute monthly equivalent — `"~$0.83/month"`  (derive from annual price divided by 12)
+   - Border: `theme.accent`, thicker than others
+   - Default selected state on mount
+
+   Card 2 — Monthly:
+   - Label: `"Monthly"`
+   - Price: `monthly?.product?.priceString` + `"/month"`
+   - Sub-label: `"Cancel anytime"`
+   - Border: `theme.glassBorder`
+
+   Card 3 — Lifetime:
+   - Label: `"Lifetime"`
+   - Price: `lifetime?.product?.priceString` + `" once"`
+   - Sub-label: `"Pay once, own forever"`
+   - Border: `theme.glassBorder`
+
+   **Selected state:** tapping a card highlights it with `theme.accent` border and a checkmark. Track selected package in local state `selectedPackage` defaulting to `'annual'`.
+
+   **CTA button:** full width, `theme.accent` background. Label: `"Start 30-Day Free Trial"` when `selectedPackage === 'annual' || 'monthly'`. Label: `"Buy Lifetime Access"` when `selectedPackage === 'lifetime'`. On press call `purchasePro(selectedPackage)`.
+
+   **Footer:** `"Restore Purchase"` text button calling `restorePurchases()`. Below it: `"Terms of Service · Privacy Policy"` as text links. Small print: `"Free trial applies to monthly and annual plans. Lifetime is a one-time purchase."` — `fontSize: 10`, `theme.textSecondary`.
+
+2. In `SubscriptionContext.js`, update `presentPaywall()` to navigate to `PaywallScreen` instead of showing an `Alert`. Import navigation ref or use a navigation prop pattern consistent with how other screens navigate in `AppNavigator.js`.
+
+3. In `AppNavigator.js`, add `PaywallScreen` as a modal stack screen with `presentation: 'modal'` option.
+
+---
+
+**TASK 8.5 — Hide Ads on Paywall-Adjacent Screens**
+
+Files to modify: `src/components/BannerAdComponent.js`, `src/screens/HomeScreen.js`
+
+1. In `BannerAdComponent.js`, accept an optional `hidden` prop. When `hidden === true`, return null regardless of `isPro` status.
+
+2. In `HomeScreen.js`, pass `hidden` prop to `BannerAdComponent` when the Best Time Finder locked state is visible on screen. Use a state variable `const [bestTimeLocked, setBestTimeLocked] = useState(!isPro)` — update it when `isPro` changes. Pass `<BannerAdComponent hidden={bestTimeLocked} />`.
+
+3. In `PaywallScreen.js`, do not render `BannerAdComponent` at all — no import, no render.
+
+4. In `OnboardingOverlay.js`, on the paywall slide (last slide), do not render `BannerAdComponent`. Add `const { isPro } = useSubscription()` and suppress any ad renders on that slide.
+
+---
+
+**TASK 8.6 — Update Onboarding Paywall Slide**
+
+Files to modify: `src/components/OnboardingOverlay.js`
+
+1. On the final slide, replace the current Pro benefits card with the following structure:
+   - Title: `"Try OutWeather+ Free"`
+   - Sub-label: `"30 days free, then choose your plan"`
+   - Three compact price chips in a horizontal row: `"$1.99/mo"` · `"$9.99/yr"` · `"$6.99 once"` — styled as pills, not interactive, just informational
+   - Feature list: 4 bullet points matching `PaywallScreen` feature list
+   - Two buttons stacked: primary `"Start Free Trial"` calling `purchasePro('annual')`, secondary `"See all plans"` navigating to `PaywallScreen`
+   - Skip link below: `"Maybe later"` completing onboarding without purchasing
+
+2. Do not show `BannerAdComponent` on this slide.
+
+---
+
+**TASK 8.7 — Smart Summary Free vs Pro Differentiation**
+
+Files to modify: `src/components/SmartSummaryCard.js`
+
+1. Free tier shows `generateFreeSummary()` output — current conditions summary only, no timing recommendation.
+2. Pro tier shows `generateDailySummary()` output — includes best window timing.
+3. Below free summary, render an upgrade teaser row: `Ionicons name="time-outline"` + `"See the best time to ${activity} today"` + `"Pro"` badge. On tap call `presentPaywall()`.
+4. This is already partially implemented — verify the teaser copy matches the above and the tap calls `presentPaywall()` not `purchasePro()` directly. `presentPaywall()` navigates to `PaywallScreen`, `purchasePro()` skips straight to purchase — the former is correct here.
+
+---
+
+**TASK 8.8 — Update AGENT_CONTEXT.md**
+
+After all tasks complete, update the Pro gating section in `AGENT_CONTEXT.md`:
+
+```markdown
+## Current Pro Gating (v1.2.0+)
+Free: All 13 activities, current conditions, 7-day forecast, 
+      hourly, radar, AQI, pollen, Smart Summary (basic), 
+      1 saved spot, 1 watchlist alert, streak counter,
+      morning briefing notification, share card
+      
+Pro:  Best Time Finder, unlimited spots, unlimited watchlist alerts,
+      Activity History Log, Weekly Report, card order customisation,
+      Smart Summary (full with best time), ad-free experience
+
+## Pricing (RevenueCat packages)
+- monthly: $1.99/month (30-day free trial)
+- annual: $9.99/year (30-day free trial) — default/hero option
+- lifetime: $6.99 one-time purchase
+
+## Paywall Entry Points
+- Best Time Finder locked state on HomeScreen
+- Second spot add attempt in SpotChips
+- Second watchlist alert in WatchlistScreen  
+- Log session button when free (HomeScreen)
+- Activity History row in SettingsScreen
+- Smart Summary upgrade teaser
+- OnboardingOverlay final slide
+- Any direct call to presentPaywall()
+```

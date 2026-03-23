@@ -48,9 +48,9 @@ const SLIDES = [
     },
 ];
 
-const OnboardingOverlay = ({ onComplete }) => {
+const OnboardingOverlay = ({ onComplete, onVisibilityChange }) => {
     const { theme } = useTheme();
-    const { purchasePro } = useSubscription();
+    const { presentPaywall } = useSubscription();
     const [visible, setVisible] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
     const [fadeAnim] = useState(new Animated.Value(0));
@@ -71,6 +71,7 @@ const OnboardingOverlay = ({ onComplete }) => {
         const completed = await AsyncStorage.getItem(ONBOARDING_KEY);
         if (!completed) {
             setVisible(true);
+            onVisibilityChange?.(true);
         }
     };
 
@@ -93,6 +94,7 @@ const OnboardingOverlay = ({ onComplete }) => {
     const completeOnboarding = async () => {
         await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
         setVisible(false);
+        onVisibilityChange?.(false);
         onComplete?.();
     };
 
@@ -139,7 +141,7 @@ const OnboardingOverlay = ({ onComplete }) => {
                             <Text style={styles.proCardTitle}>Unlock OutWeather+</Text>
                             <View style={styles.proFeatureRow}>
                                 <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
-                                <Text style={styles.proFeatureText}>All 13 activities</Text>
+                                <Text style={styles.proFeatureText}>Unlock all activities</Text>
                             </View>
                             <View style={styles.proFeatureRow}>
                                 <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
@@ -151,9 +153,9 @@ const OnboardingOverlay = ({ onComplete }) => {
                             </View>
                             <View style={styles.proFeatureRow}>
                                 <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
-                                <Text style={styles.proFeatureText}>30 days free</Text>
+                                <Text style={styles.proFeatureText}>Free Trial</Text>
                             </View>
-                            <TouchableOpacity style={styles.subscribeBtn} onPress={purchasePro} activeOpacity={0.8}>
+                            <TouchableOpacity style={styles.subscribeBtn} onPress={presentPaywall} activeOpacity={0.8}>
                                 <Text style={styles.subscribeText}>Start Free Trial</Text>
                             </TouchableOpacity>
                         </View>

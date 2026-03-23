@@ -14,13 +14,17 @@ export const getSpots = async () => {
     }
 };
 
-export const addSpot = async (spot) => {
+export const addSpot = async (spot, isPro = false) => {
     try {
         const currentSpots = await getSpots();
+        if (!isPro && currentSpots.length >= 1) {
+            throw { code: 'SPOTS_LIMIT_REACHED', message: 'Free users can save 1 location. Upgrade to save unlimited spots.' };
+        }
         const newSpots = [...currentSpots, spot];
         await AsyncStorage.setItem(SPOTS_KEY, JSON.stringify(newSpots));
         return newSpots;
     } catch (e) {
+        if (e.code) throw e;
         Sentry.captureException(e);
         console.error("Failed to add spot", e);
         return await getSpots();

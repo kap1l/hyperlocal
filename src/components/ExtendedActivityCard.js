@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useWeather } from '../context/WeatherContext';
 
-const ExtendedActivityCard = ({ currently, analysis, onFindBestTime }) => {
+const ExtendedActivityCard = ({ currently, analysis, onFindBestTime, isPro, onUnlock }) => {
     const { theme } = useTheme();
     const { selectedActivity } = useWeather();
 
@@ -75,16 +75,33 @@ const ExtendedActivityCard = ({ currently, analysis, onFindBestTime }) => {
                 ))}
             </View>
 
-            {/* Smart Schedule Button */}
-            <TouchableOpacity
-                style={[styles.scheduleBtn, { backgroundColor: theme.accent }]}
-                onPress={onFindBestTime}
-            >
-                <Ionicons name="calendar" size={16} color={theme.name === 'day' ? '#fff' : '#000'} />
-                <Text style={[styles.scheduleBtnText, { color: theme.name === 'day' ? '#fff' : '#000' }]}>
-                    Find Best Time
-                </Text>
-            </TouchableOpacity>
+            {/* Smart Schedule Button / Paywall Inline */}
+            {isPro ? (
+                <TouchableOpacity
+                    style={[styles.scheduleBtn, { backgroundColor: theme.accent }]}
+                    onPress={onFindBestTime}
+                >
+                    <Ionicons name="calendar" size={16} color={theme.name === 'day' ? '#fff' : '#000'} />
+                    <Text style={[styles.scheduleBtnText, { color: theme.name === 'day' ? '#fff' : '#000' }]}>
+                        Find Best Time
+                    </Text>
+                </TouchableOpacity>
+            ) : (
+                <View style={{ marginTop: 15, alignItems: 'center' }}>
+                    <View style={[styles.scheduleBtn, { backgroundColor: theme.accent + '30', width: '100%', opacity: 0.6 }]}>
+                        <Ionicons name="lock-closed" size={16} color={theme.name === 'day' ? '#fff' : '#000'} />
+                        <Text style={[styles.scheduleBtnText, { color: theme.name === 'day' ? '#fff' : '#000' }]}>
+                            See your best window
+                        </Text>
+                    </View>
+                    <TouchableOpacity
+                        style={{ marginTop: 12, paddingVertical: 8, paddingHorizontal: 16, backgroundColor: theme.accent, borderRadius: 20 }}
+                        onPress={onUnlock}
+                    >
+                        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>Unlock Best Time Finder</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </TouchableOpacity>
     );
 };

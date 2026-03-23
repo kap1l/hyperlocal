@@ -46,12 +46,12 @@ const getAdUnitId = () => {
         : PRODUCTION_UNIT_IDS.android;
 };
 
-const BannerAdComponent = () => {
+const BannerAdComponent = ({ forceHide }) => {
     const { isPro } = useSubscription();
     const [adLoaded, setAdLoaded] = useState(false);
 
     // 1. Privacy-first: Pro users never load ad SDK
-    if (isPro) return null;
+    if (isPro || forceHide) return null;
 
     const unitId = getAdUnitId();
 

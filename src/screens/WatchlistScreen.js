@@ -6,9 +6,11 @@ import { useTheme } from '../context/ThemeContext';
 import { getWatchlist, addWatch, removeWatch } from '../services/WatchlistService';
 import GlassDropdown from '../components/GlassDropdown';
 import Slider from '@react-native-community/slider';
+import { useSubscription } from '../context/SubscriptionContext';
 
 const WatchlistScreen = ({ navigation }) => {
     const { theme } = useTheme();
+    const { isPro, presentPaywall } = useSubscription();
     const [watches, setWatches] = useState([]);
     const [modalVisible, setModalVisible] = useState(false);
 
@@ -48,9 +50,18 @@ const WatchlistScreen = ({ navigation }) => {
             notifiedToday: false,
             lastNotifiedDate: null,
         };
-        await addWatch(item);
-        setModalVisible(false);
-        loadWatches();
+        try {
+            await addWatch(item, isPro);
+            setModalVisible(false);
+            loadWatches();
+        } catch (e) {
+            if (e.code === 'WATCHLIST_LIMIT_REACHED') {
+                setModalVisible(false);
+                presentPaywall();
+            } else {
+                console.error(e);
+            }
+        }
     };
 
     const handleDelete = async (id) => {
@@ -102,13 +113,23 @@ const WatchlistScreen = ({ navigation }) => {
                     )}
                 />
 
-                <TouchableOpacity 
-                    style={[styles.fab, { backgroundColor: theme.accent }]}
-                    onPress={() => setModalVisible(true)}
-                >
-                    <Ionicons name="add" size={24} color="#fff" />
-                    <Text style={{ color: '#fff', fontWeight: 'bold', marginLeft: 8 }}>New Alert</Text>
-                </TouchableOpacity>
+                {(!isPro && watches.length >= 1) ? (
+                    <TouchableOpacity 
+                        style={[styles.fab, { backgroundColor: theme.textSecondary }]}
+                        onPress={presentPaywall}
+                    >
+                        <Ionicons name="lock-closed" size={24} color="#fff" />
+                        <Text style={{ color: '#fff', fontWeight: 'bold', marginLeft: 8 }}>Upgrade for more alerts</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity 
+                        style={[styles.fab, { backgroundColor: theme.accent }]}
+                        onPress={() => setModalVisible(true)}
+                    >
+                        <Ionicons name="add" size={24} color="#fff" />
+                        <Text style={{ color: '#fff', fontWeight: 'bold', marginLeft: 8 }}>New Alert</Text>
+                    </TouchableOpacity>
+                )}
 
             </View>
 

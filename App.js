@@ -10,6 +10,7 @@ import { WeatherProvider } from './src/context/WeatherContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { SubscriptionProvider } from './src/context/SubscriptionContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import { navigationRef } from './src/navigation/NavigationService';
 import { logAppOpenForReview } from './src/services/AppReviewService';
 import { scheduleWeeklyReportNotification } from './src/services/NotificationService';
 
@@ -95,7 +96,7 @@ const AppContent = () => {
             <ThemeProvider>
                 <SubscriptionProvider>
                     <WeatherProvider>
-                        <NavigationContainer>
+                        <NavigationContainer ref={navigationRef}>
                             <AppNavigator />
                         </NavigationContainer>
                     </WeatherProvider>

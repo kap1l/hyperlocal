@@ -14,13 +14,17 @@ export const getWatchlist = async () => {
     return [];
 };
 
-export const addWatch = async (item) => {
+export const addWatch = async (item, isPro = false) => {
     try {
         const current = await getWatchlist();
+        if (!isPro && current.length >= 1) {
+            throw { code: 'WATCHLIST_LIMIT_REACHED', message: 'Free users can set 1 alert. Upgrade for unlimited alerts.' };
+        }
         const updated = [...current, item];
         await AsyncStorage.setItem(WATCHLIST_KEY, JSON.stringify(updated));
         return updated;
     } catch (e) {
+        if (e.code) throw e;
         Sentry.captureException(e);
         console.error("Failed to add watch", e);
     }
