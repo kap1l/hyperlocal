@@ -98,9 +98,9 @@ export const SubscriptionProvider = ({ children }) => {
             }
 
             if (!pkg) {
-                pkg = packages?.monthly || offerings.availablePackages.find(
-                    p => p.identifier === 'monthly' || p.identifier === '$rc_monthly'
-                );
+                pkg = packages?.annual 
+                    || packages?.monthly 
+                    || offerings.availablePackages[0];
             }
 
             if (!pkg) {

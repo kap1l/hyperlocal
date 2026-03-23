@@ -502,3 +502,72 @@ Pro:  Best Time Finder, unlimited spots, unlimited watchlist alerts,
 - OnboardingOverlay final slide
 - Any direct call to presentPaywall()
 ```
+
+
+**OutWeather — Pricing Fix Pass**
+
+Read `AGENT_CONTEXT.md` before writing any code. All rules in that file are non-negotiable.
+
+---
+
+**FIX 1 — `purchasePro()` default package**
+
+File: `src/context/SubscriptionContext.js`
+
+Find the block inside `purchasePro()` where `pkg` is null and a fallback is selected. Replace:
+
+```javascript
+pkg = packages?.monthly || offerings.availablePackages.find(
+    p => p.identifier === 'monthly' || p.identifier === '$rc_monthly'
+);
+```
+
+With:
+
+```javascript
+pkg = packages?.annual 
+    || packages?.monthly 
+    || offerings.availablePackages[0];
+```
+
+---
+
+**FIX 2 — `PaywallScreen` selected state and CTA button**
+
+File: `src/screens/PaywallScreen.js`
+
+1. Add state at the top of the component:
+```javascript
+const [selectedPackage, setSelectedPackage] = useState('annual');
+```
+
+2. Update `renderCard()` to accept a `packageKey` string param alongside existing params. Add a `selected` visual state — when `selectedPackage === packageKey`, apply `theme.accent` border color and a checkmark `Ionicons name="checkmark-circle"` in the top-right corner of the card. When not selected, apply `theme.glassBorder` border and no checkmark. Change `onPress` from calling `handlePurchase(pkg)` directly to calling `setSelectedPackage(packageKey)` with `Haptics.selectionAsync()`.
+
+3. Update all three `renderCard()` calls to pass the key:
+```javascript
+renderCard(packages?.annual, 'annual', 'Annual', '~$0.83/month · Best value', true)
+renderCard(packages?.monthly, 'monthly', 'Monthly', 'Cancel anytime')
+renderCard(packages?.lifetime, 'lifetime', 'Lifetime', 'Pay once, own forever')
+```
+
+4. Add a single CTA `TouchableOpacity` below the three cards. Label: `"Start 30-Day Free Trial"` when `selectedPackage === 'annual' || selectedPackage === 'monthly'`. Label: `"Buy Lifetime Access — ${packages?.lifetime?.product?.priceString}"` when `selectedPackage === 'lifetime'`. On press call `handlePurchase(packages[selectedPackage])`. Style: full width, `theme.accent` background, `borderRadius: 14`, `paddingVertical: 16`, white bold text, disabled + reduced opacity when `purchasing === true`.
+
+5. Remove the individual `onPress` purchase calls from each `renderCard()` — cards now only set selected state.
+
+---
+
+**FIX 3 — Onboarding final slide**
+
+File: `src/components/OnboardingOverlay.js`
+
+On the last slide (index 4, `"You're All Set"`), make the following additions below the existing feature list and above the existing `"Start Free Trial"` button:
+
+1. Add three informational price chips in a horizontal `View` with `flexDirection: 'row'`, `justifyContent: 'center'`, `gap: 8`, `marginBottom: 16`. Each chip is a non-interactive `View` styled as a pill (`borderRadius: 12`, `paddingHorizontal: 10`, `paddingVertical: 4`, `backgroundColor: 'rgba(255,255,255,0.1)'`). Chip labels: `"$1.99/mo"`, `"$9.99/yr"`, `"$6.99 once"`. Text style: `fontSize: 12`, `color: 'rgba(255,255,255,0.8)'`.
+
+2. Keep the existing `"Start Free Trial"` primary button unchanged. It calls `purchasePro()` — leave as-is.
+
+3. Below the primary button, add a secondary `TouchableOpacity` labelled `"See all plans"`. On press navigate to `PaywallScreen` using `NavigationService.navigate('Paywall')` (the `NavigationService.js` already exists in `src/navigation/`). Style: `marginTop: 8`, no background, `paddingVertical: 10`. Text: `fontSize: 14`, `color: 'rgba(255,255,255,0.7)'`, `textDecorationLine: 'underline'`.
+
+4. Below `"See all plans"`, add a `"Maybe later"` `TouchableOpacity`. On press call `completeOnboarding()` — same function used by the existing skip button. Style: `marginTop: 4`, `paddingVertical: 8`. Text: `fontSize: 13`, `color: 'rgba(255,255,255,0.4)'`, no underline.
+
+5. Do not show `BannerAdComponent` on this slide — add `if (currentSlide === SLIDES.length - 1) return null` guard inside `BannerAdComponent` render if one exists on the onboarding screen, or simply ensure no `BannerAdComponent` is rendered within `OnboardingOverlay.js`.

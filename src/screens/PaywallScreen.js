@@ -11,6 +11,7 @@ const PaywallScreen = ({ navigation }) => {
     const { packages, purchasePro, restorePurchases, isLoading } = useSubscription();
     const { theme } = useTheme();
     const [purchasing, setPurchasing] = useState(false);
+    const [selectedPackage, setSelectedPackage] = useState('annual');
 
     const handlePurchase = async (pkg) => {
         if (!pkg) return;
@@ -23,17 +24,26 @@ const PaywallScreen = ({ navigation }) => {
         }
     };
 
-    const renderCard = (pkg, title, subtitle, isBestValue = false) => {
+    const renderCard = (pkg, packageKey, title, subtitle, isBestValue = false) => {
         if (!pkg) return null;
+        const isSelected = selectedPackage === packageKey;
         return (
             <TouchableOpacity 
-                style={[styles.card, { borderColor: isBestValue ? theme.accent : theme.glassBorder, backgroundColor: theme.cardBg }]}
-                onPress={() => handlePurchase(pkg)}
+                style={[styles.card, { borderColor: isSelected ? theme.accent : theme.glassBorder, backgroundColor: theme.cardBg }]}
+                onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedPackage(packageKey);
+                }}
                 disabled={purchasing}
             >
                 {isBestValue && (
                     <View style={[styles.bestValueBadge, { backgroundColor: theme.accent }]}>
                         <Text style={styles.bestValueText}>BEST VALUE</Text>
+                    </View>
+                )}
+                {isSelected && (
+                    <View style={styles.checkmarkContainer}>
+                        <Ionicons name="checkmark-circle" size={24} color={theme.accent} />
                     </View>
                 )}
                 <View style={styles.cardContent}>
@@ -82,9 +92,22 @@ const PaywallScreen = ({ navigation }) => {
                     </View>
                 ) : (
                     <View style={styles.cardsContainer}>
-                        {renderCard(packages?.annual, 'Annual', 'Includes 30-day Free Trial', true)}
-                        {renderCard(packages?.monthly, 'Monthly', 'Includes 30-day Free Trial')}
-                        {renderCard(packages?.lifetime, 'Lifetime', 'Pay once, yours forever')}
+                        {renderCard(packages?.annual, 'annual', 'Annual', '~$0.83/month · Best value', true)}
+                        {renderCard(packages?.monthly, 'monthly', 'Monthly', 'Cancel anytime')}
+                        {renderCard(packages?.lifetime, 'lifetime', 'Lifetime', 'Pay once, own forever')}
+                        
+                        <TouchableOpacity
+                            style={[styles.ctaButton, { backgroundColor: theme.accent, opacity: purchasing ? 0.7 : 1 }]}
+                            disabled={purchasing}
+                            onPress={() => handlePurchase(packages[selectedPackage])}
+                        >
+                            <Text style={styles.ctaButtonText}>
+                                {(selectedPackage === 'annual' || selectedPackage === 'monthly')
+                                    ? 'Start 30-Day Free Trial'
+                                    : `Buy Lifetime Access — ${packages?.lifetime?.product?.priceString || ''}`
+                                }
+                            </Text>
+                        </TouchableOpacity>
                     </View>
                 )}
 
@@ -122,10 +145,13 @@ const styles = StyleSheet.create({
     card: { borderWidth: 2, borderRadius: 16, padding: 20, position: 'relative' },
     bestValueBadge: { position: 'absolute', top: -12, right: 20, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 10 },
     bestValueText: { color: '#fff', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
+    checkmarkContainer: { position: 'absolute', top: '50%', right: 15, marginTop: -12 },
     cardContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     cardTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
     cardSubtitle: { fontSize: 13 },
-    priceText: { fontSize: 20, fontWeight: 'bold' },
+    priceText: { fontSize: 20, fontWeight: 'bold', marginRight: 35 },
+    ctaButton: { width: '100%', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 15 },
+    ctaButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
     footer: { marginTop: 'auto', marginBottom: 20, alignItems: 'center', gap: 15 },
     footerLink: { fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
     legalRow: { flexDirection: 'row', alignItems: 'center' },
