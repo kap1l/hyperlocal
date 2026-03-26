@@ -47,6 +47,9 @@ const getAdUnitId = () => {
 };
 
 const BannerAdComponent = ({ forceHide }) => {
+    // ADS DISABLED — Phase 1. Re-enable at 500+ installs.
+    return null;
+
     const { isPro } = useSubscription();
     const [adLoaded, setAdLoaded] = useState(false);
 

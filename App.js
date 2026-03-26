@@ -16,7 +16,7 @@ import { scheduleWeeklyReportNotification } from './src/services/NotificationSer
 import { initTrial } from './src/services/TrialService';
 
 Sentry.init({
-  dsn: 'YOUR_SENTRY_DSN_HERE', // TODO: replace with your real Sentry DSN
+  dsn: Constants.expoConfig?.extra?.sentryDsn || '',
   debug: false,
 });
 

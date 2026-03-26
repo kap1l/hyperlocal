@@ -104,6 +104,7 @@ export default {
       eas: {
         projectId: '847feb51-37ae-4836-9e4d-0275b3cb1dbe',
       },
+      sentryDsn: process.env.SENTRY_DSN,
       // RevenueCat keys — injected at build time from EAS Secrets / env vars.
       // null → purchases disabled gracefully (no Pro granted — see SubscriptionContext)
       revenueCatAndroidKey: process.env.REVENUECAT_ANDROID_KEY || null,

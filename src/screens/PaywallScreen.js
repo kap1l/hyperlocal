@@ -11,7 +11,7 @@ const PaywallScreen = ({ navigation }) => {
     const { packages, purchasePro, restorePurchases, isLoading } = useSubscription();
     const { theme } = useTheme();
     const [purchasing, setPurchasing] = useState(false);
-    const [selectedPackage, setSelectedPackage] = useState('annual');
+    const [selectedPackage, setSelectedPackage] = useState('lifetime');
 
     const handlePurchase = async (pkg) => {
         if (!pkg) return;
@@ -92,8 +92,8 @@ const PaywallScreen = ({ navigation }) => {
                     </View>
                 ) : (
                     <View style={styles.cardsContainer}>
-                        {renderCard(packages?.annual, 'annual', 'Annual', '~$0.83/month · Best value', true)}
-                        {renderCard(packages?.monthly, 'monthly', 'Monthly', 'Cancel anytime')}
+                        {/* {renderCard(packages?.annual, 'annual', 'Annual', '~$0.83/month · Best value', true)}
+                        {renderCard(packages?.monthly, 'monthly', 'Monthly', 'Cancel anytime')} */}
                         {renderCard(packages?.lifetime, 'lifetime', 'Lifetime', 'Pay once, own forever')}
                         
                         <TouchableOpacity
@@ -102,10 +102,7 @@ const PaywallScreen = ({ navigation }) => {
                             onPress={() => handlePurchase(packages[selectedPackage])}
                         >
                             <Text style={styles.ctaButtonText}>
-                                {(selectedPackage === 'annual' || selectedPackage === 'monthly')
-                                    ? 'Start 30-Day Free Trial'
-                                    : `Buy Lifetime Access — ${packages?.lifetime?.product?.priceString || ''}`
-                                }
+                                Unlock everything — $6.99
                             </Text>
                         </TouchableOpacity>
                     </View>

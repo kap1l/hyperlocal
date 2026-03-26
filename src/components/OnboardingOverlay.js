@@ -154,17 +154,13 @@ const OnboardingOverlay = ({ onComplete, onVisibilityChange }) => {
                             </View>
                             <View style={styles.proFeatureRow}>
                                 <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
-                                <Text style={styles.proFeatureText}>Free Trial</Text>
+                                <Text style={styles.proFeatureText}>Activity history & weekly reports</Text>
                             </View>
 
-                            <View style={styles.priceChipsRow}>
-                                <View style={styles.priceChip}><Text style={styles.priceChipText}>$1.99/mo</Text></View>
-                                <View style={styles.priceChip}><Text style={styles.priceChipText}>$14.99/yr</Text></View>
-                                <View style={styles.priceChip}><Text style={styles.priceChipText}>$39.99 once</Text></View>
-                            </View>
+                            <Text style={styles.oneTimeOnly}>One-time purchase · No subscription</Text>
 
                             <TouchableOpacity style={styles.subscribeBtn} onPress={purchasePro} activeOpacity={0.8}>
-                                <Text style={styles.subscribeText}>Start Free Trial</Text>
+                                <Text style={styles.subscribeText}>Unlock everything — $6.99</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity 
@@ -338,9 +334,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
     },
-    priceChipsRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 16, marginTop: 10 },
-    priceChip: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: 'rgba(255,255,255,0.1)' },
-    priceChipText: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
+    oneTimeOnly: { fontSize: 13, color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginBottom: 16 },
     seeAllPlansBtn: { marginTop: 8, paddingVertical: 10, alignItems: 'center' },
     seeAllPlansText: { fontSize: 14, color: 'rgba(255,255,255,0.7)', textDecorationLine: 'underline' },
     maybeLaterBtn: { marginTop: 4, paddingVertical: 8, alignItems: 'center' },
