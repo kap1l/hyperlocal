@@ -4,6 +4,7 @@ import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import Constants from 'expo-constants';
 import * as Sentry from '@sentry/react-native';
 import { navigate, navigationRef } from '../navigation/NavigationService';
+import { getTrialStatus } from '../services/TrialService';
 
 const SubscriptionContext = createContext();
 
@@ -24,9 +25,15 @@ export const SubscriptionProvider = ({ children }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [offerings, setOfferings] = useState(null);
     const [packages, setPackages] = useState({ monthly: null, annual: null, lifetime: null });
+    const [trialStatus, setTrialStatus] = useState({ isInTrial: false, daysUsed: 0, daysRemaining: 0, trialExpired: false });
 
     useEffect(() => {
-        initializeRevenueCat();
+        const setup = async () => {
+            const status = await getTrialStatus();
+            setTrialStatus(status);
+            await initializeRevenueCat();
+        };
+        setup();
     }, []);
 
     const initializeRevenueCat = async () => {
@@ -74,7 +81,8 @@ export const SubscriptionProvider = ({ children }) => {
     const updateSubscriptionStatus = async (customerInfo) => {
         const entitlement = customerInfo?.entitlements?.active[ENTITLEMENT_ID];
         const hasProEntitlement = !!entitlement;
-        setIsPro(hasProEntitlement);
+        const currentTrialStatus = await getTrialStatus();
+        setIsPro(hasProEntitlement || currentTrialStatus.isInTrial);
         
         if (hasProEntitlement && entitlement.periodType === 'trial') {
             setIsTrialing(true);
@@ -203,6 +211,7 @@ export const SubscriptionProvider = ({ children }) => {
             isLoading,
             offerings,
             packages,
+            trialStatus,
             purchasePro,
             presentPaywall,
             presentCustomerCenter,

@@ -571,3 +571,127 @@ On the last slide (index 4, `"You're All Set"`), make the following additions be
 4. Below `"See all plans"`, add a `"Maybe later"` `TouchableOpacity`. On press call `completeOnboarding()` — same function used by the existing skip button. Style: `marginTop: 4`, `paddingVertical: 8`. Text: `fontSize: 13`, `color: 'rgba(255,255,255,0.4)'`, no underline.
 
 5. Do not show `BannerAdComponent` on this slide — add `if (currentSlide === SLIDES.length - 1) return null` guard inside `BannerAdComponent` render if one exists on the onboarding screen, or simply ensure no `BannerAdComponent` is rendered within `OnboardingOverlay.js`.
+
+Edited SubscriptionContext.js
+Viewed PaywallScreen.js:1-136
+Edited PaywallScreen.js
+Viewed PaywallScreen.js:1-170
+Edited PaywallScreen.js
+Viewed OnboardingOverlay.js:1-325
+Edited OnboardingOverlay.js
+Edited OnboardingOverlay.js
+Ran command: `git add . && git commit -m "fix: pricing and onboarding tweaks" && git push origin main`
+
+I have successfully completed the **Pricing Fix Pass** tasks that you added to [daily_engagement.md](cci:7://file:///Users/kc/git/hyperlocal/docs/daily_engagement.md:0:0-0:0). 
+
+Here is a quick breakdown of what was implemented:
+1. **Fallback Fix**: [purchasePro()](cci:1://file:///Users/kc/git/hyperlocal/src/context/SubscriptionContext.js:92:4-132:6) now correctly defaults to attempting to buy the `annual` package first, then `monthly`, and falls back to whatever first package is loaded via `offerings.availablePackages[0]`.
+2. **Paywall Enhancements**: Added an active selection state in [PaywallScreen.js](cci:7://file:///Users/kc/git/hyperlocal/src/screens/PaywallScreen.js:0:0-0:0). Users can now tap to select a specific package, which highlights it and adds a checkmark. The individual CTA buttons in each card were merged into one large CTA at the bottom which dynamically reads either `"Start 30-Day Free Trial"` (for annual/monthly plans) or `"Buy Lifetime Access — [price]"` based on their selection.
+3. **Onboarding Wrap-up**: On the final slide of [OnboardingOverlay.js](cci:7://file:///Users/kc/git/hyperlocal/src/components/OnboardingOverlay.js:0:0-0:0), I added the three informational price pill chips directly below the features. Underneath the bold `"Start Free Trial"` button, you now have a `"See all plans"` button (which links to the new Paywall screen) and a `"Maybe later"` button (which completes the onboarding). 
+
+I've also just committed and pushed these final edits up to the remote `main` branch. 
+
+Clever instinct but it won't work on Android for a fundamental OS reason.
+
+---
+
+## Why It Won't Work on Android
+
+When a user uninstalls an app on Android, **the OS deletes everything the app wrote** — AsyncStorage, SQLite databases, internal files, external files in app-specific directories. This is enforced at the OS level, not something you can override from within the app.
+
+The only storage that survives uninstall on Android is:
+
+**1. Files written to shared external storage** (`/sdcard/` or `Download/` folder)
+
+Technically survives uninstall but requires `READ/WRITE_EXTERNAL_STORAGE` permission which Google has heavily restricted since Android 10 and outright blocks from Play Store since Android 13 unless you have a specific use case justification. Google will reject your app if you request this permission without a valid reason. "Tracking reinstalls" is not a valid reason.
+
+**2. Android Account Manager**
+
+Can persist data tied to a Google account but requires the user to grant account access — a permission most users will deny and Google flags as invasive.
+
+**3. Google Play Install Referrer API**
+
+Tracks installs via Play Store but resets on uninstall/reinstall by design.
+
+**4. A backend**
+
+The only reliable solution. Device fingerprint (derived from `expo-device` hardware identifiers) stored server-side. On install, app sends fingerprint to server, server checks if fingerprint has had a trial, returns trial status. Cannot be defeated by reinstall.
+
+---
+
+## iOS Is Different
+
+On iOS, data written to the Keychain survives app deletion. This is why many iOS apps use Keychain to persist trial state across reinstalls. Since you're Android-only for now, this doesn't help you.
+
+---
+
+## Honest Assessment
+
+For a $6.99 lifetime purchase, the reinstall exploit is not worth engineering a complex solution. The math:
+
+- Users who reinstall to avoid $6.99 are a tiny fraction of installs
+- Building a backend just to catch them costs more in your time than you'd recover in purchases
+- The friction of reinstalling (losing all their history, streaks, saved spots, activity logs) is itself a deterrent — your app now has enough personal data stored locally that reinstalling means losing everything
+
+**The activity history log, streak counter, saved spots, and watchlist configuration are all stored in AsyncStorage.** A user who reinstalls to exploit the trial loses:
+- Their full activity history
+- Their streak
+- Their saved locations
+- Their watchlist alerts
+- Their goal progress
+- Their weekly reports
+
+For most genuine users that loss is worth more than $6.99. The exploit only works for someone who has never used the app meaningfully — which means they're not your conversion target anyway.
+
+---
+
+## The Only Practical Option Without a Backend
+
+Use `expo-application` to get the Android ID — a hardware-derived identifier that persists across reinstalls on the same device (resets only on factory reset):
+
+```javascript
+import * as Application from 'expo-application';
+
+const androidId = await Application.getAndroidId();
+// Returns a unique 64-bit hex string tied to the device + app signing key
+// Survives uninstall/reinstall on the same device
+// Resets only on factory reset or if user changes Google account
+```
+
+Store the trial start date in AsyncStorage as usual. On each install, recompute the trial expiry from the install date in AsyncStorage. If AsyncStorage is empty (fresh install or cleared), check a secondary key derived from `androidId` stored in `expo-secure-store` — Secure Store data on Android survives app uninstall in some configurations depending on Android version and manufacturer.
+
+This is imperfect — Secure Store behaviour on uninstall varies by Android version and OEM — but it catches the majority of casual reinstall attempts without requiring a backend.
+
+---
+
+## Requirement for Agent
+
+**TASK — Reinstall-Resistant Trial Tracking**
+
+Files to modify: `src/services/StorageService.js`
+Files to create: `src/services/TrialService.js`
+
+1. Install dependency: `expo-secure-store` already in project. `expo-application` already in project.
+
+2. In `TrialService.js`, implement `initTrial()`:
+   - Import `Application` from `expo-application` and `SecureStore` from `expo-secure-store`.
+   - Get `androidId` via `Application.getAndroidId()`.
+   - Derive a secure storage key: `const secureKey = \`trial_start_${androidId}\``.
+   - Check `SecureStore.getItemAsync(secureKey)` first. If value exists, use it as trial start date — this survives reinstall.
+   - If SecureStore is empty, check AsyncStorage `@trial_start_date`.
+   - If both empty, this is a genuine first install — write `Date.now().toString()` to both SecureStore and AsyncStorage.
+   - If SecureStore has a value but AsyncStorage is empty (reinstall detected), restore AsyncStorage from SecureStore value.
+   - Return the trial start timestamp as a number.
+
+3. Implement `getTrialStatus()`:
+   - Call `initTrial()` to get trial start timestamp.
+   - Compute `daysUsed = Math.floor((Date.now() - trialStart) / 86400000)`.
+   - Return `{ isInTrial: daysUsed < 14, daysUsed, daysRemaining: Math.max(0, 14 - daysUsed), trialExpired: daysUsed >= 14 }`.
+
+4. Implement `getTrialStartDate()` — returns timestamp. `isTrialExpired()` — returns bool.
+
+5. In `SubscriptionContext.js`, import `getTrialStatus()`. On init, call it and store result. Expose `trialStatus` from Provider. Use `trialStatus.isInTrial` to determine whether to show full Pro features regardless of RevenueCat subscription status. A user in trial gets `isPro = true` automatically.
+
+6. In `App.js`, call `initTrial()` on mount before anything else renders — ensures trial state is always initialised before any component reads it.
+
+7. Wrap all SecureStore operations in try/catch with Sentry. SecureStore can fail on some Android configurations — always fall back to AsyncStorage gracefully. Never block app launch on trial init failure — if both fail, default to `isInTrial: true` and log the error. Better to give a user an undeserved trial day than to block the app entirely.

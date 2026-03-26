@@ -13,6 +13,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/NavigationService';
 import { logAppOpenForReview } from './src/services/AppReviewService';
 import { scheduleWeeklyReportNotification } from './src/services/NotificationService';
+import { initTrial } from './src/services/TrialService';
 
 Sentry.init({
   dsn: 'YOUR_SENTRY_DSN_HERE', // TODO: replace with your real Sentry DSN
@@ -107,6 +108,20 @@ const AppContent = () => {
 };
 
 const App = () => {
+    const [isTrialReady, setIsTrialReady] = React.useState(false);
+
+    React.useEffect(() => {
+        const setupTrial = async () => {
+            await initTrial();
+            setIsTrialReady(true);
+        };
+        setupTrial();
+    }, []);
+
+    if (!isTrialReady) {
+        return null;
+    }
+
     return (
         <ErrorBoundary>
             <AppContent />
