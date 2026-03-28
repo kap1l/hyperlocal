@@ -15,6 +15,7 @@ web-build/
 *.log
 build_log.txt
 run.log
+android/
 android/build_log.txt
 android/.gradle/
 android/app/build/
@@ -26,6 +27,7 @@ android/build/
 *.jks
 
 # iOS
+ios/
 ios/Pods/
 ios/build/
 *.xcworkspace
