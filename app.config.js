@@ -71,7 +71,6 @@ export default {
         'expo-build-properties',
         {
           android: {
-            newArchEnabled: false,
             minSdkVersion: 26,
           },
         },
