@@ -97,12 +97,12 @@ const PaywallScreen = ({ navigation }) => {
                         {renderCard(packages?.lifetime, 'lifetime', 'Lifetime', 'Pay once, own forever')}
                         
                         <TouchableOpacity
-                            style={[styles.ctaButton, { backgroundColor: theme.accent, opacity: purchasing ? 0.7 : 1 }]}
-                            disabled={purchasing}
-                            onPress={() => handlePurchase(packages[selectedPackage])}
+                            style={[styles.ctaButton, { backgroundColor: theme.accent, opacity: purchasing || !packages?.lifetime ? 0.7 : 1 }]}
+                            disabled={purchasing || !packages?.lifetime}
+                            onPress={() => handlePurchase(packages?.lifetime)}
                         >
                             <Text style={styles.ctaButtonText}>
-                                Unlock everything — $6.99
+                                {packages?.lifetime ? `Unlock everything — ${packages.lifetime.product.priceString}` : 'Loading...'}
                             </Text>
                         </TouchableOpacity>
                     </View>

@@ -51,7 +51,7 @@ const SLIDES = [
 
 const OnboardingOverlay = ({ onComplete, onVisibilityChange }) => {
     const { theme } = useTheme();
-    const { purchasePro } = useSubscription();
+    const { purchasePro, packages } = useSubscription();
     const [visible, setVisible] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
     const [fadeAnim] = useState(new Animated.Value(0));
@@ -159,15 +159,15 @@ const OnboardingOverlay = ({ onComplete, onVisibilityChange }) => {
 
                             <Text style={styles.oneTimeOnly}>One-time purchase · No subscription</Text>
 
-                            <TouchableOpacity style={styles.subscribeBtn} onPress={purchasePro} activeOpacity={0.8}>
-                                <Text style={styles.subscribeText}>Unlock everything — $6.99</Text>
-                            </TouchableOpacity>
-
                             <TouchableOpacity 
-                                style={styles.seeAllPlansBtn} 
-                                onPress={() => { completeOnboarding(); navigate('Paywall'); }}
+                                style={[styles.subscribeBtn, { opacity: !packages?.lifetime ? 0.7 : 1 }]} 
+                                onPress={() => purchasePro(packages?.lifetime)} 
+                                activeOpacity={0.8}
+                                disabled={!packages?.lifetime}
                             >
-                                <Text style={styles.seeAllPlansText}>See all plans</Text>
+                                <Text style={styles.subscribeText}>
+                                    {packages?.lifetime ? `Unlock everything — ${packages.lifetime.product.priceString}` : 'Loading...'}
+                                </Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity style={styles.maybeLaterBtn} onPress={completeOnboarding}>
