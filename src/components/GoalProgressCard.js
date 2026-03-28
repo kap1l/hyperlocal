@@ -4,7 +4,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { getGoal, getProgress, getBestRemainingWindows } from '../services/GoalService';
-import { ActivityIcons } from '../utils/activityIcons';
+const ActivityIcons = {
+    walk: 'walk-outline',
+    run: 'fitness-outline',
+    cycle: 'bicycle-outline',
+    drive: 'car-outline',
+    hike: 'analytics-outline',
+    tennis: 'tennisball-outline',
+    golf: 'golf-outline',
+    yoga: 'body-outline',
+    fishing: 'fish-outline',
+    stargazing: 'moon-outline',
+    photography: 'camera-outline'
+};
 
 export default function GoalProgressCard({ dailyData, units }) {
     const { theme } = useTheme();
