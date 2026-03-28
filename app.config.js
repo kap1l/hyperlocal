@@ -66,6 +66,15 @@ export default {
       'expo-location',
       'expo-secure-store',
       '@react-native-community/datetimepicker',
+      [
+        'expo-build-properties',
+        {
+          android: {
+            newArchEnabled: false,
+            minSdkVersion: 26,
+          },
+        },
+      ],
       // Google Mobile Ads — must appear before the build runs native config
       [
         'react-native-google-mobile-ads',
