@@ -442,7 +442,7 @@ const SettingsScreen = ({ navigation }) => {
                 <View style={[styles.section, { backgroundColor: theme.cardBg }]}>
                     <Text style={[styles.label, { color: theme.textSecondary }]}>Connected Apps</Text>
 
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                         style={[styles.row, { paddingVertical: 12 }]}
                         onPress={() => navigation.navigate('StravaConnect')}
                     >
@@ -450,7 +450,7 @@ const SettingsScreen = ({ navigation }) => {
                         <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
                     </TouchableOpacity>
                     
-                    <View style={{ height: 1, backgroundColor: theme.glassBorder, marginVertical: 4 }} />
+                    <View style={{ height: 1, backgroundColor: theme.glassBorder, marginVertical: 4 }} /> */}
 
                     {Platform.OS === 'android' && (
                         <>
