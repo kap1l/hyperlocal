@@ -15,6 +15,7 @@ export default {
   expo: {
     name: 'OutWeather',
     slug: 'microweather',
+    scheme: 'outweather',
     version: '1.1.0',
     orientation: 'portrait',
     icon: './assets/icon.png',
